@@ -1,0 +1,30 @@
+{
+  "name": "agent-army",
+  "version": "0.1.0",
+  "description": "Command your AI agent swarm — launch, monitor, and control Claude Code agents",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "stop": "lsof -t -i :${PORT:-3000} | xargs kill 2>/dev/null && echo 'Server stopped' || echo 'No server running on port'",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.7.0",
+    "express": "^4.21.0",
+    "node-pty": "^1.0.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "prettier": "^3.4.0",
+    "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
