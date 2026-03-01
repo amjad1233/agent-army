@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,12 +9,21 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
-      darkMode: 'class',
       theme: {
         extend: {
           colors: {
-            surface: { 1: '#0a0a0a', 2: '#141414', 3: '#1e1e1e', 4: '#282828' },
-            accent: { DEFAULT: '#22d3ee', dim: '#0e7490' },
+            base:     '#0A0C0E',
+            surface:  '#111418',
+            elevated: '#191D23',
+            border:   '#222830',
+            green:    '#22C55E',
+            amber:    '#F59E0B',
+            red:      '#EF4444',
+            blue:     '#60A5FA',
+            purple:   '#A78BFA',
+            text1:    '#F1F5F9',
+            text2:    '#94A3B8',
+            text3:    '#4B5563',
           }
         }
       }
@@ -31,129 +40,355 @@
 
   <link rel="stylesheet" href="/css/styles.css" />
 </head>
-<body class="bg-surface-1 text-gray-200 min-h-screen" x-data="app">
+<body class="h-screen flex overflow-hidden" style="background: var(--bg-base); color: var(--text-1);" x-data="app" :data-theme="theme">
 
-  <!-- Header -->
-  <header class="border-b border-white/5 bg-surface-2/80 backdrop-blur sticky top-0 z-50">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+  <!-- ─── SIDEBAR ─────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <!-- Logo -->
+    <div class="sidebar-logo">
       <div class="flex items-center gap-3">
-        <h1 class="text-lg font-semibold tracking-tight text-white">AgentArmy</h1>
+        <div class="w-8 h-8 rounded-lg flex items-center justify-center text-base font-bold" style="background: var(--logo-bg); color: var(--logo-color);">
+          A
+        </div>
+        <div>
+          <div class="mono font-bold text-sm text-text1" style="letter-spacing: -0.01em;">AgentArmy</div>
+          <div class="mono text-[10px] text-text3">v0.1.0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nav -->
+    <nav class="sidebar-nav">
+      <button
+        @click="screen = 'dashboard'"
+        class="sidebar-nav-item"
+        :class="{ 'active': screen === 'dashboard' }"
+      >
+        <span class="sidebar-nav-icon">&#x2B21;</span>
+        Dashboard
+      </button>
+      <button
+        @click="screen = 'agents'"
+        class="sidebar-nav-item"
+        :class="{ 'active': screen === 'agents' }"
+      >
+        <span class="sidebar-nav-icon">&#x25B6;</span>
+        Agents
         <span
-          class="text-xs font-medium px-2 py-0.5 rounded-full"
-          :class="agents.filter(a => a.live).length > 0
-            ? 'bg-emerald-500/10 text-emerald-400'
-            : 'bg-white/5 text-gray-500'"
-          x-text="agents.filter(a => a.live).length + ' running'"
+          x-show="runningCount > 0"
+          class="ml-auto mono text-[10px] text-green font-semibold"
+          x-text="runningCount"
         ></span>
+      </button>
+    </nav>
+
+    <!-- Theme + Footer -->
+    <div class="sidebar-footer">
+      <div class="mb-3">
+        <div class="mono text-[10px] uppercase mb-2" style="color: var(--text-3); letter-spacing: 0.06em;">Theme</div>
+        <div class="theme-picker">
+          <button
+            @click="setTheme('dark')"
+            class="theme-swatch theme-swatch-dark"
+            :class="{ 'active': theme === 'dark' }"
+            title="Dark"
+          ></button>
+          <button
+            @click="setTheme('light')"
+            class="theme-swatch theme-swatch-light"
+            :class="{ 'active': theme === 'light' }"
+            title="Light"
+          ></button>
+          <button
+            @click="setTheme('midnight')"
+            class="theme-swatch theme-swatch-midnight"
+            :class="{ 'active': theme === 'midnight' }"
+            title="Midnight"
+          ></button>
+          <button
+            @click="setTheme('ember')"
+            class="theme-swatch theme-swatch-ember"
+            :class="{ 'active': theme === 'ember' }"
+            title="Ember"
+          ></button>
+        </div>
+      </div>
+      <button
+        @click="shutdownServer()"
+        class="btn btn-ghost btn-sm w-full text-center"
+        style="font-size: 11px;"
+      >Quit Server</button>
+    </div>
+  </aside>
+
+  <!-- ─── MAIN CONTENT ────────────────────────────────────── -->
+  <div class="flex-1 flex flex-col min-w-0">
+
+    <!-- ═══ DASHBOARD SCREEN ═══ -->
+    <div x-show="screen === 'dashboard'" x-cloak class="flex-1 overflow-y-auto" style="padding: 28px;">
+
+      <!-- Header -->
+      <div class="mb-7 fadeUp">
+        <div class="flex justify-between items-start">
+          <div>
+            <h1 class="text-[22px] font-semibold text-text1" style="letter-spacing: -0.02em;" x-text="greeting"></h1>
+            <p class="text-text2 text-[13px] mt-1" x-text="dashboardSubtitle"></p>
+          </div>
+          <button @click="showLaunchModal = true" class="btn btn-outline-green">
+            &#x25B6;&ensp;LAUNCH AGENT
+          </button>
+        </div>
       </div>
 
-      <div class="flex items-center gap-2">
-        <button
-          @click="showBroadcastModal = true"
-          class="px-3 py-1.5 text-sm rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 transition"
-          :disabled="agents.filter(a => a.live).length === 0"
-        >
-          Broadcast
-        </button>
-        <button
-          @click="showLaunchModal = true"
-          class="px-3 py-1.5 text-sm rounded-lg bg-accent/10 text-accent hover:bg-accent/20 font-medium transition"
-        >
-          + Launch Agent
-        </button>
+      <!-- Stats -->
+      <div class="grid grid-cols-4 gap-3.5 mb-7">
+        <div class="card fadeUp fadeUp-1" style="padding: 18px 20px;">
+          <div class="stat-label">Running</div>
+          <div class="stat-value text-text1" x-text="runningCount"></div>
+          <div class="stat-sub">agents active</div>
+        </div>
+        <div class="card fadeUp fadeUp-2" style="padding: 18px 20px;">
+          <div class="stat-label">Total Sessions</div>
+          <div class="stat-value text-green" x-text="agents.length"></div>
+          <div class="stat-sub">this session</div>
+        </div>
+        <div class="card fadeUp fadeUp-3" style="padding: 18px 20px;">
+          <div class="stat-label">Completed</div>
+          <div class="stat-value text-blue" x-text="completedCount"></div>
+          <div class="stat-sub" x-text="successRate + ' success rate'"></div>
+        </div>
+        <div class="card fadeUp fadeUp-4" style="padding: 18px 20px;">
+          <div class="stat-label">Failed</div>
+          <div class="stat-value text-red" x-text="failedCount"></div>
+          <div class="stat-sub">needs attention</div>
+        </div>
       </div>
-    </div>
-  </header>
 
-  <!-- Main content -->
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-
-    <!-- Empty state -->
-    <div x-show="agents.length === 0" class="text-center py-24 text-gray-500">
-      <p class="text-lg mb-2">No agents yet</p>
-      <p class="text-sm">Launch an agent to get started.</p>
-    </div>
-
-    <!-- Agent cards grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <template x-for="agent in agents" :key="agent.id">
-        <div class="bg-surface-2 border border-white/5 rounded-xl overflow-hidden flex flex-col">
-          <!-- Card header -->
-          <div class="flex items-center justify-between px-4 py-3 border-b border-white/5">
-            <div class="flex items-center gap-3 min-w-0">
-              <span
-                class="w-2 h-2 rounded-full flex-shrink-0"
-                :class="{
-                  'bg-emerald-400': agent.live,
-                  'bg-gray-600': !agent.live && agent.status === 'completed',
-                  'bg-red-400': agent.status === 'failed',
-                  'bg-yellow-400': agent.status === 'stopped',
-                }"
-              ></span>
-              <span class="font-medium text-sm text-white truncate" x-text="agent.project_name"></span>
-              <span x-show="agent.issue_number" class="text-xs text-gray-500" x-text="'#' + agent.issue_number"></span>
+      <!-- Active Agents -->
+      <div x-show="runningAgents.length > 0" class="mb-7 fadeUp fadeUp-2">
+        <div class="card card-live" style="padding: 20px 22px;">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2.5">
+              <div class="pulse-dot"></div>
+              <span class="mono text-[11px] font-bold text-green uppercase" style="letter-spacing: 0.08em;">
+                Live Agents
+              </span>
             </div>
-            <div class="flex items-center gap-2 flex-shrink-0">
-              <span
-                class="text-[11px] uppercase tracking-wide px-2 py-0.5 rounded font-medium"
-                :class="{
-                  'text-emerald-400 bg-emerald-400/10': agent.live,
-                  'text-gray-500 bg-white/5': agent.status === 'completed',
-                  'text-red-400 bg-red-400/10': agent.status === 'failed',
-                  'text-yellow-400 bg-yellow-400/10': agent.status === 'stopped',
-                }"
-                x-text="agent.live ? 'running' : agent.status"
-              ></span>
-              <button
-                x-show="agent.live"
-                @click="stopAgent(agent.id)"
-                class="text-xs px-2 py-1 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 transition"
-              >Stop</button>
-            </div>
+            <span class="mono text-[11px] text-text3" x-text="runningCount + ' running'"></span>
           </div>
 
-          <!-- Terminal -->
-          <div
-            class="terminal-container"
-            :id="'term-' + agent.id"
-            x-init="$nextTick(() => initTerminal(agent.id))"
-          ></div>
-
-          <!-- Message input -->
-          <div x-show="agent.live" class="border-t border-white/5 px-3 py-2">
-            <form @submit.prevent="sendMessage(agent.id, agent._inputMsg); agent._inputMsg = ''" class="flex gap-2">
-              <input
-                type="text"
-                x-model="agent._inputMsg"
-                placeholder="Send message to agent..."
-                class="flex-1 bg-surface-3 text-sm rounded-lg px-3 py-1.5 text-gray-200 placeholder-gray-600 border border-white/5 focus:outline-none focus:border-accent/30"
-              />
-              <button
-                type="submit"
-                class="text-sm px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 transition"
-              >Send</button>
-            </form>
+          <div class="grid grid-cols-2 gap-3">
+            <template x-for="agent in runningAgents" :key="agent.id">
+              <div
+                class="agent-card cursor-pointer"
+                @click="screen = 'agents'; activeTab = agent.id; $nextTick(() => focusTerminal(agent.id))"
+              >
+                <div>
+                  <div class="text-[13px] text-text1 font-medium mb-1" x-text="agent.project_name"></div>
+                  <div class="mono text-[10px] text-text3">
+                    <span x-text="agent.issue_title || ('Issue #' + agent.issue_number)" x-show="agent.issue_number"></span>
+                    <span x-show="!agent.issue_number" x-text="agent.project_repo"></span>
+                  </div>
+                </div>
+                <span class="badge badge-running">
+                  <span class="badge-dot"></span>
+                  Running
+                </span>
+              </div>
+            </template>
           </div>
         </div>
-      </template>
-    </div>
-  </main>
+      </div>
 
-  <!-- Launch Modal -->
+      <!-- Session History -->
+      <div class="fadeUp fadeUp-3">
+        <div class="label mb-3">Session History</div>
+        <div class="card" x-show="agents.length > 0">
+          <template x-for="agent in agents" :key="agent.id">
+            <div class="history-row">
+              <div class="flex items-center gap-3.5">
+                <span
+                  class="mono text-[11px] text-text3"
+                  x-text="'#' + agent.id"
+                  style="min-width: 32px;"
+                ></span>
+                <div>
+                  <div class="text-[13px] font-medium text-text1" x-text="agent.project_name"></div>
+                  <div class="text-[11px] text-text3" x-text="agent.issue_title || (agent.issue_number ? 'Issue #' + agent.issue_number : agent.project_repo)"></div>
+                </div>
+              </div>
+              <div class="flex items-center gap-5">
+                <span class="mono text-[11px] text-text3" x-text="'PID ' + agent.pid"></span>
+                <button
+                  x-show="!agent.live && agent.claude_session_id"
+                  @click.stop="resumeAgent(agent.id)"
+                  class="btn btn-outline-green btn-sm"
+                  style="font-size: 11px; padding: 3px 10px;"
+                >Resume</button>
+                <span
+                  class="badge"
+                  :class="{
+                    'badge-running': agent.live,
+                    'badge-completed': !agent.live && agent.status === 'completed',
+                    'badge-failed': agent.status === 'failed',
+                    'badge-stopped': agent.status === 'stopped',
+                  }"
+                >
+                  <span x-show="agent.live" class="badge-dot"></span>
+                  <span x-text="agent.live ? 'Running' : agent.status"></span>
+                </span>
+              </div>
+            </div>
+          </template>
+        </div>
+        <div x-show="agents.length === 0" class="card" style="padding: 40px 20px;">
+          <div class="text-center text-text3">
+            <p class="text-[14px] mb-2">No sessions yet</p>
+            <p class="text-[12px]">Launch an agent to get started.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ AGENTS SCREEN ═══ -->
+    <div x-show="screen === 'agents'" x-cloak class="flex-1 flex flex-col min-h-0">
+
+      <!-- Top action bar -->
+      <div class="flex items-center justify-between px-4 py-2 bg-surface border-b border-border flex-shrink-0">
+        <div class="flex items-center gap-2">
+          <span class="mono text-[11px] text-text3 uppercase" style="letter-spacing: 0.06em;" x-text="runningCount + ' running'"></span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button
+            @click="showBroadcastModal = true"
+            class="btn btn-ghost btn-sm"
+            :disabled="runningCount === 0"
+          >Broadcast</button>
+          <button
+            x-show="runningCount > 0"
+            @click="stopAllAgents()"
+            class="btn btn-danger btn-sm"
+          >Stop All</button>
+          <button
+            x-show="agents.filter(a => !a.live).length > 0"
+            @click="clearFinished()"
+            class="btn btn-ghost btn-sm"
+          >Clear Finished</button>
+          <button
+            @click="showLaunchModal = true"
+            class="btn btn-outline-green btn-sm"
+          >+ Launch</button>
+        </div>
+      </div>
+
+      <!-- Tab bar -->
+      <div x-show="agents.length > 0" class="tab-bar flex-shrink-0">
+        <template x-for="agent in agents" :key="agent.id">
+          <button
+            @click="activeTab = agent.id; $nextTick(() => focusTerminal(agent.id))"
+            class="tab-item"
+            :class="{ 'active': activeTab === agent.id }"
+          >
+            <span
+              class="status-dot"
+              :class="{
+                'status-dot-running': agent.live,
+                'status-dot-completed': !agent.live && agent.status === 'completed',
+                'status-dot-failed': agent.status === 'failed',
+                'status-dot-stopped': agent.status === 'stopped',
+              }"
+            ></span>
+            <span x-text="agent.project_name"></span>
+            <span x-show="agent.issue_number" class="text-text3 mono text-[11px]" x-text="'#' + agent.issue_number"></span>
+            <span
+              @click.stop="closeTab(agent.id)"
+              class="tab-close"
+            >&times;</span>
+          </button>
+        </template>
+      </div>
+
+      <!-- Terminal panels -->
+      <main class="flex-1 relative min-h-0">
+        <!-- Empty state -->
+        <div x-show="agents.length === 0" class="empty-state">
+          <p class="text-[16px] text-text2 mb-2 font-medium">No agents running</p>
+          <p class="text-[13px] text-text3 mb-5">Launch an agent to see its terminal here.</p>
+          <button
+            @click="showLaunchModal = true"
+            class="btn btn-outline-green"
+          >&#x25B6;&ensp;LAUNCH AGENT</button>
+        </div>
+
+        <!-- One terminal per agent -->
+        <template x-for="agent in agents" :key="agent.id">
+          <div
+            x-show="activeTab === agent.id"
+            class="absolute inset-0 flex flex-col"
+          >
+            <!-- Terminal status bar -->
+            <div class="terminal-status-bar flex-shrink-0">
+              <div class="flex items-center gap-3">
+                <span
+                  class="badge"
+                  :class="{
+                    'badge-running': agent.live,
+                    'badge-completed': !agent.live && agent.status === 'completed',
+                    'badge-failed': agent.status === 'failed',
+                    'badge-stopped': agent.status === 'stopped',
+                  }"
+                >
+                  <span x-show="agent.live" class="badge-dot"></span>
+                  <span x-text="agent.live ? 'Running' : agent.status"></span>
+                </span>
+                <span class="mono text-[11px] text-text3" x-text="agent.project_repo"></span>
+                <span class="mono text-[11px] text-text3" x-text="'PID ' + agent.pid"></span>
+              </div>
+              <div class="flex items-center gap-2">
+                <button
+                  x-show="!agent.live && agent.claude_session_id"
+                  @click="resumeAgent(agent.id)"
+                  class="btn btn-outline-green btn-sm"
+                >Resume</button>
+                <button
+                  x-show="agent.live"
+                  @click="stopAgent(agent.id)"
+                  class="btn btn-danger btn-sm"
+                >Stop</button>
+                <button
+                  @click="closeTab(agent.id)"
+                  class="btn btn-ghost btn-sm"
+                >Close</button>
+              </div>
+            </div>
+
+            <!-- Full-size terminal -->
+            <div
+              class="terminal-fullscreen"
+              :id="'term-' + agent.id"
+              x-init="$nextTick(() => initTerminal(agent.id))"
+            ></div>
+          </div>
+        </template>
+      </main>
+    </div>
+  </div>
+
+  <!-- ─── LAUNCH MODAL ────────────────────────────────────── -->
   <div
     x-show="showLaunchModal"
     x-cloak
-    class="fixed inset-0 z-50 flex items-center justify-center p-4"
+    class="modal"
   >
-    <div class="absolute inset-0 bg-black/60" @click="showLaunchModal = false"></div>
-    <div class="relative bg-surface-2 border border-white/10 rounded-xl w-full max-w-md p-6" @click.stop>
-      <h2 class="text-lg font-semibold text-white mb-4">Launch Agent</h2>
+    <div class="modal-backdrop" @click="showLaunchModal = false"></div>
+    <div class="modal-content" @click.stop>
+      <h2 class="modal-title">Launch Agent</h2>
 
       <form @submit.prevent="launchAgent">
-        <label class="block text-sm text-gray-400 mb-1">Project</label>
+        <label class="form-label">Project</label>
         <select
           x-model="launchForm.projectId"
-          class="w-full bg-surface-3 text-sm rounded-lg px-3 py-2 text-gray-200 border border-white/5 focus:outline-none focus:border-accent/30 mb-4"
+          class="input mb-4"
         >
           <option value="">Select project...</option>
           <template x-for="p in projects" :key="p.id">
@@ -161,34 +396,43 @@
           </template>
         </select>
 
-        <label class="block text-sm text-gray-400 mb-1">Issue # <span class="text-gray-600">(optional)</span></label>
+        <label class="form-label">Issue # <span class="form-label-hint">(optional)</span></label>
         <input
           type="number"
           x-model.number="launchForm.issueNumber"
           placeholder="e.g. 42"
-          class="w-full bg-surface-3 text-sm rounded-lg px-3 py-2 text-gray-200 border border-white/5 focus:outline-none focus:border-accent/30 mb-4"
+          class="input mb-4"
         />
 
-        <label class="block text-sm text-gray-400 mb-1">Issue title <span class="text-gray-600">(optional)</span></label>
+        <label class="form-label">Issue title <span class="form-label-hint">(optional)</span></label>
         <input
           type="text"
           x-model="launchForm.issueTitle"
           placeholder="Short description of the task"
-          class="w-full bg-surface-3 text-sm rounded-lg px-3 py-2 text-gray-200 border border-white/5 focus:outline-none focus:border-accent/30 mb-6"
+          class="input mb-4"
         />
 
-        <div x-show="launchError" x-cloak class="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm" x-text="launchError"></div>
+        <label class="form-label">Number of agents</label>
+        <input
+          type="number"
+          x-model.number="launchForm.count"
+          min="1"
+          max="10"
+          class="input mb-6"
+        />
+
+        <div x-show="launchError" x-cloak class="mb-4 px-3 py-2 rounded-lg text-[13px]" style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); color: var(--red);" x-text="launchError"></div>
 
         <div class="flex justify-end gap-2">
           <button
             type="button"
             @click="showLaunchModal = false"
-            class="px-4 py-2 text-sm rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 transition"
+            class="btn btn-ghost"
           >Cancel</button>
           <button
             type="submit"
             :disabled="!launchForm.projectId || launching"
-            class="px-4 py-2 text-sm rounded-lg bg-accent/10 text-accent hover:bg-accent/20 font-medium transition disabled:opacity-30"
+            class="btn btn-primary disabled:opacity-30"
           >
             <span x-show="!launching">Launch</span>
             <span x-show="launching" x-cloak>Launching...</span>
@@ -198,34 +442,34 @@
     </div>
   </div>
 
-  <!-- Broadcast Modal -->
+  <!-- ─── BROADCAST MODAL ─────────────────────────────────── -->
   <div
     x-show="showBroadcastModal"
     x-cloak
-    class="fixed inset-0 z-50 flex items-center justify-center p-4"
+    class="modal"
   >
-    <div class="absolute inset-0 bg-black/60" @click="showBroadcastModal = false"></div>
-    <div class="relative bg-surface-2 border border-white/10 rounded-xl w-full max-w-md p-6" @click.stop>
-      <h2 class="text-lg font-semibold text-white mb-4">Broadcast to All Agents</h2>
+    <div class="modal-backdrop" @click="showBroadcastModal = false"></div>
+    <div class="modal-content" @click.stop>
+      <h2 class="modal-title">Broadcast to All Agents</h2>
 
       <form @submit.prevent="broadcastMessage">
         <textarea
           x-model="broadcastText"
           rows="3"
           placeholder="Message to send to all running agents..."
-          class="w-full bg-surface-3 text-sm rounded-lg px-3 py-2 text-gray-200 border border-white/5 focus:outline-none focus:border-accent/30 mb-4 resize-none"
+          class="input mb-4 resize-none"
         ></textarea>
 
         <div class="flex justify-end gap-2">
           <button
             type="button"
             @click="showBroadcastModal = false"
-            class="px-4 py-2 text-sm rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 transition"
+            class="btn btn-ghost"
           >Cancel</button>
           <button
             type="submit"
             :disabled="!broadcastText.trim()"
-            class="px-4 py-2 text-sm rounded-lg bg-accent/10 text-accent hover:bg-accent/20 font-medium transition disabled:opacity-30"
+            class="btn btn-primary disabled:opacity-30"
           >Broadcast</button>
         </div>
       </form>

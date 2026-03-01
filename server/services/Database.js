@@ -18,6 +18,12 @@ export function getDb() {
     // Run schema
     const schema = readFileSync(SCHEMA_PATH, 'utf-8');
     instance.exec(schema);
+
+    // Migrate: add claude_session_id if missing (for existing DBs)
+    const cols = instance.prepare("PRAGMA table_info(agent_sessions)").all();
+    if (!cols.find(c => c.name === 'claude_session_id')) {
+      instance.exec('ALTER TABLE agent_sessions ADD COLUMN claude_session_id TEXT');
+    }
   }
   return instance;
 }
@@ -47,13 +53,13 @@ export function projectCount() {
 
 // --- Agent Sessions ---
 
-export function createSession({ projectId, issueNumber, issueTitle, pid, worktreePath, branchName }) {
+export function createSession({ projectId, issueNumber, issueTitle, pid, worktreePath, branchName, claudeSessionId }) {
   const result = getDb()
     .prepare(
-      `INSERT INTO agent_sessions (project_id, issue_number, issue_title, pid, worktree_path, branch_name)
-       VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO agent_sessions (project_id, issue_number, issue_title, pid, worktree_path, branch_name, claude_session_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(projectId, issueNumber || null, issueTitle || null, pid, worktreePath || null, branchName || null);
+    .run(projectId, issueNumber || null, issueTitle || null, pid, worktreePath || null, branchName || null, claudeSessionId || null);
   return result.lastInsertRowid;
 }
 
@@ -98,6 +104,26 @@ export function getAllSessions() {
        FROM agent_sessions s
        JOIN projects p ON s.project_id = p.id
        ORDER BY s.started_at DESC`
+    )
+    .all();
+}
+
+export function clearFinishedSessions() {
+  const result = getDb()
+    .prepare("DELETE FROM agent_sessions WHERE status IN ('completed', 'failed', 'stopped')")
+    .run();
+  return result.changes;
+}
+
+export function getResumableSessions() {
+  return getDb()
+    .prepare(
+      `SELECT s.*, p.name as project_name, p.repo as project_repo
+       FROM agent_sessions s
+       JOIN projects p ON s.project_id = p.id
+       WHERE s.status IN ('completed', 'failed', 'stopped')
+         AND s.claude_session_id IS NOT NULL
+       ORDER BY s.finished_at DESC`
     )
     .all();
 }

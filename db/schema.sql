@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
   worktree_path TEXT,
   branch_name TEXT,
   pr_number INTEGER,
+  claude_session_id TEXT,
   pid INTEGER,
   started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   finished_at DATETIME,

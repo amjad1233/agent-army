@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { agentManager } from '../services/AgentManager.js';
-import { getSession, getAllSessions, getActiveSessions } from '../services/Database.js';
+import { getSession, getAllSessions, getActiveSessions, clearFinishedSessions } from '../services/Database.js';
 
 const router = Router();
 
@@ -58,6 +58,17 @@ router.post('/:id/message', (req, res) => {
   }
 });
 
+// POST /api/agents/:id/resume — Resume a stopped/completed agent
+router.post('/:id/resume', (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const session = agentManager.resume(id);
+    res.json(session);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // DELETE /api/agents/:id — Stop agent
 router.delete('/:id', (req, res) => {
   try {
@@ -67,6 +78,37 @@ router.delete('/:id', (req, res) => {
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
+});
+
+// POST /api/agents/stop-all — Stop all running agents
+router.post('/stop-all', (req, res) => {
+  const count = agentManager.runningCount;
+  agentManager.stopAll();
+  res.json({ ok: true, stopped: count });
+});
+
+// DELETE /api/agents — Remove finished (non-running) agents from the list
+router.delete('/', (req, res) => {
+  const removed = clearFinishedSessions();
+  res.json({ ok: true, removed });
+});
+
+// GET /api/agents/:id/health — Check if agent process is alive
+router.get('/:id/health', (req, res) => {
+  const id = parseInt(req.params.id);
+  const session = getSession(id);
+  if (!session) return res.status(404).json({ error: 'Agent not found' });
+
+  const running = agentManager.isRunning(id);
+  const healthy = running && agentManager.isHealthy(id);
+
+  res.json({
+    id,
+    running,
+    healthy,
+    status: session.status,
+    pid: session.pid,
+  });
 });
 
 export default router;
