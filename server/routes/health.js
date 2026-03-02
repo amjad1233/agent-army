@@ -13,4 +13,14 @@ router.get('/', (req, res) => {
   });
 });
 
+// POST /health/shutdown — Stop all agents and exit server
+router.post('/shutdown', (req, res) => {
+  res.json({ ok: true, message: 'Shutting down...' });
+  // Give the response time to flush, then exit
+  setTimeout(() => {
+    agentManager.stopAll();
+    process.exit(0);
+  }, 500);
+});
+
 export default router;

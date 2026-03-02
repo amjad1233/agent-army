@@ -44,8 +44,22 @@ export function setupWebSocket(server) {
         }
       } else if (msg.type === 'subscribe_all') {
         subs.add('all');
+        // Send catch-up log buffers for all running agents
+        for (const sessionId of agentManager.getAllRunningIds()) {
+          const log = agentManager.getLog(sessionId);
+          if (log) {
+            send(ws, { type: 'log_buffer', sessionId, data: log });
+          }
+        }
       } else if (msg.type === 'unsubscribe' && msg.sessionId) {
         subs.delete(msg.sessionId);
+      } else if (msg.type === 'input' && msg.sessionId && msg.data) {
+        // Forward keypress from browser terminal to agent PTY
+        try {
+          agentManager.sendRawInput(msg.sessionId, msg.data);
+        } catch {
+          // Agent may have exited
+        }
       }
     });
 
