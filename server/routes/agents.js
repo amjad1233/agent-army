@@ -7,11 +7,11 @@ const router = Router();
 // POST /api/agents/launch — Launch a new agent
 router.post('/launch', (req, res) => {
   try {
-    const { projectId, issueNumber, issueTitle } = req.body;
+    const { projectId, issueNumber, issueTitle, customPrompt } = req.body;
     if (!projectId) {
       return res.status(400).json({ error: 'projectId is required' });
     }
-    const session = agentManager.launch(projectId, issueNumber, issueTitle);
+    const session = agentManager.launch(projectId, issueNumber, issueTitle, customPrompt);
     res.json(session);
   } catch (err) {
     res.status(500).json({ error: err.message });

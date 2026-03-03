@@ -33,3 +33,11 @@ CREATE TABLE IF NOT EXISTS broadcasts (
   agent_count INTEGER,
   sent_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Saved prompts for the prompt library
+CREATE TABLE IF NOT EXISTS prompts (
+  id INTEGER PRIMARY KEY,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

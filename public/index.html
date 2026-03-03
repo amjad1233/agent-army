@@ -134,9 +134,17 @@
             <h1 class="text-[22px] font-semibold text-text1" style="letter-spacing: -0.02em;" x-text="greeting"></h1>
             <p class="text-text2 text-[13px] mt-1" x-text="dashboardSubtitle"></p>
           </div>
-          <button @click="showLaunchModal = true" class="btn btn-outline-green">
-            &#x25B6;&ensp;LAUNCH AGENT
-          </button>
+          <div class="flex items-center gap-2">
+            <button @click="showOnboardModal = true" class="btn btn-ghost" style="font-size: 12px;">
+              Onboard
+            </button>
+            <button @click="showOffboardModal = true" class="btn btn-ghost" style="font-size: 12px; color: var(--red);">
+              Offboard
+            </button>
+            <button @click="showLaunchModal = true" class="btn btn-outline-green">
+              &#x25B6;&ensp;LAUNCH AGENT
+            </button>
+          </div>
         </div>
       </div>
 
@@ -264,6 +272,11 @@
             class="btn btn-ghost btn-sm"
             :disabled="runningCount === 0"
           >Broadcast</button>
+          <button
+            @click="showPromptLibrary = true"
+            class="btn btn-ghost btn-sm"
+            :disabled="!activeTab || !agents.find(a => a.id === activeTab && a.live)"
+          >Prompts</button>
           <button
             x-show="runningCount > 0"
             @click="stopAllAgents()"
@@ -473,6 +486,159 @@
           >Broadcast</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- ─── ONBOARD MODAL ─────────────────────────────────── -->
+  <div
+    x-show="showOnboardModal"
+    x-cloak
+    class="modal"
+  >
+    <div class="modal-backdrop" @click="showOnboardModal = false"></div>
+    <div class="modal-content" @click.stop style="max-width: 440px;">
+      <h2 class="modal-title">Onboard Project</h2>
+
+      <form @submit.prevent="launchOnboard">
+        <label class="form-label">Type</label>
+        <div class="flex gap-2 mb-4">
+          <button
+            type="button"
+            @click="onboardType = 'new'"
+            class="btn btn-sm flex-1"
+            :class="onboardType === 'new' ? 'btn-primary' : 'btn-ghost'"
+          >New Project</button>
+          <button
+            type="button"
+            @click="onboardType = 'existing'"
+            class="btn btn-sm flex-1"
+            :class="onboardType === 'existing' ? 'btn-primary' : 'btn-ghost'"
+          >Existing Project</button>
+        </div>
+
+        <label class="form-label">Project</label>
+        <select x-model="onboardProjectId" class="input mb-4">
+          <option value="">Select project...</option>
+          <template x-for="p in projects" :key="p.id">
+            <option :value="p.id" x-text="p.name + ' — ' + p.repo"></option>
+          </template>
+        </select>
+
+        <p class="text-[11px] text-text3 mb-4" x-text="onboardType === 'new' ? 'Launches an agent to scaffold a new project: GitHub repo, board, CLAUDE.md, backlog, and swarm registry.' : 'Launches an agent to add swarm infrastructure to an existing codebase without modifying code.'"></p>
+
+        <div class="flex justify-end gap-2">
+          <button type="button" @click="showOnboardModal = false" class="btn btn-ghost">Cancel</button>
+          <button type="submit" :disabled="!onboardProjectId" class="btn btn-primary disabled:opacity-30">Launch</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── OFFBOARD MODAL ────────────────────────────────── -->
+  <div
+    x-show="showOffboardModal"
+    x-cloak
+    class="modal"
+  >
+    <div class="modal-backdrop" @click="showOffboardModal = false"></div>
+    <div class="modal-content" @click.stop style="max-width: 440px;">
+      <h2 class="modal-title">Offboard Project</h2>
+
+      <form @submit.prevent="launchOffboard">
+        <label class="form-label">Project to shut down</label>
+        <select x-model="offboardProjectId" class="input mb-4">
+          <option value="">Select project...</option>
+          <template x-for="p in projects" :key="p.id">
+            <option :value="p.id" x-text="p.name + ' — ' + p.repo"></option>
+          </template>
+        </select>
+
+        <p class="text-[11px] text-text3 mb-4">Launches an agent to cleanly remove this project from the swarm: close issues, merge/close PRs, clean worktrees and branches, remove from registry.</p>
+
+        <div class="flex justify-end gap-2">
+          <button type="button" @click="showOffboardModal = false" class="btn btn-ghost">Cancel</button>
+          <button type="submit" :disabled="!offboardProjectId" class="btn btn-primary disabled:opacity-30" style="background: var(--red);">Shut Down</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── PROMPT LIBRARY MODAL ──────────────────────────── -->
+  <div
+    x-show="showPromptLibrary"
+    x-cloak
+    class="modal"
+  >
+    <div class="modal-backdrop" @click="showPromptLibrary = false"></div>
+    <div class="modal-content" @click.stop style="max-width: 520px;">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="modal-title" style="margin-bottom: 0;">Prompt Library</h2>
+        <button
+          @click="showAddPromptForm = !showAddPromptForm"
+          class="btn btn-ghost btn-sm"
+          x-text="showAddPromptForm ? 'Cancel' : '+ Add'"
+        ></button>
+      </div>
+
+      <!-- Add prompt form (collapsible) -->
+      <div x-show="showAddPromptForm" x-cloak class="mb-4">
+        <form @submit.prevent="addPrompt">
+          <input
+            type="text"
+            x-model="newPromptTitle"
+            placeholder="Prompt title"
+            class="input mb-2"
+          />
+          <textarea
+            x-model="newPromptBody"
+            rows="3"
+            placeholder="Prompt body — the message to send to the agent..."
+            class="input mb-3 resize-none"
+          ></textarea>
+          <div class="flex justify-end">
+            <button
+              type="submit"
+              :disabled="!newPromptTitle.trim() || !newPromptBody.trim()"
+              class="btn btn-primary btn-sm disabled:opacity-30"
+            >Save Prompt</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Prompt list -->
+      <div style="max-height: 360px; overflow-y: auto;">
+        <template x-for="prompt in prompts" :key="prompt.id">
+          <div
+            class="flex items-start justify-between gap-3 px-3 py-2.5 rounded-lg cursor-pointer"
+            style="border: 1px solid var(--border); margin-bottom: 6px;"
+            @mouseenter="$el.style.background = 'var(--bg-elevated)'"
+            @mouseleave="$el.style.background = 'transparent'"
+          >
+            <div class="flex-1 min-w-0" @click="sendPromptToAgent(prompt.body)">
+              <div class="text-[13px] text-text1 font-medium" x-text="prompt.title"></div>
+              <div class="text-[11px] text-text3 mt-0.5 truncate" x-text="prompt.body"></div>
+            </div>
+            <button
+              @click.stop="deletePrompt(prompt.id)"
+              class="text-text3 hover:text-red text-[16px] leading-none flex-shrink-0 mt-0.5"
+              title="Delete prompt"
+            >&times;</button>
+          </div>
+        </template>
+
+        <!-- Empty state -->
+        <div x-show="prompts.length === 0" class="text-center py-8">
+          <p class="text-[13px] text-text3 mb-1">No saved prompts yet</p>
+          <p class="text-[11px] text-text3">Click "+ Add" to create your first prompt.</p>
+        </div>
+      </div>
+
+      <div class="flex justify-end mt-4">
+        <button
+          @click="showPromptLibrary = false"
+          class="btn btn-ghost"
+        >Close</button>
+      </div>
     </div>
   </div>
 

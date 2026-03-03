@@ -16,8 +16,20 @@ document.addEventListener('alpine:init', () => {
 
     showLaunchModal: false,
     showBroadcastModal: false,
+    showPromptLibrary: false,
     broadcastText: '',
     launchForm: { projectId: '', issueNumber: null, issueTitle: '', count: 1 },
+
+    prompts: [],
+    newPromptTitle: '',
+    newPromptBody: '',
+    showAddPromptForm: false,
+
+    showOnboardModal: false,
+    onboardType: 'new',  // 'new' or 'existing'
+    onboardProjectId: '',
+    showOffboardModal: false,
+    offboardProjectId: '',
 
     ws: null,
     wsRetryDelay: 1000,
@@ -96,6 +108,7 @@ document.addEventListener('alpine:init', () => {
       document.body.setAttribute('data-theme', this.theme);
       await this.fetchProjects();
       await this.fetchAgents();
+      await this.fetchPrompts();
       // Auto-select first tab
       if (this.agents.length > 0) {
         this.activeTab = this.agents[0].id;
@@ -261,6 +274,122 @@ document.addEventListener('alpine:init', () => {
         this.broadcastText = '';
       } catch (err) {
         console.error('Failed to broadcast:', err);
+      }
+    },
+
+    // --- Prompt Library ---
+
+    async fetchPrompts() {
+      try {
+        const res = await fetch('/api/prompts');
+        this.prompts = await res.json();
+      } catch (err) {
+        console.error('Failed to fetch prompts:', err);
+      }
+    },
+
+    async addPrompt() {
+      const title = this.newPromptTitle.trim();
+      const body = this.newPromptBody.trim();
+      if (!title || !body) return;
+      try {
+        const res = await fetch('/api/prompts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, body }),
+        });
+        const prompt = await res.json();
+        this.prompts.unshift(prompt);
+        this.newPromptTitle = '';
+        this.newPromptBody = '';
+        this.showAddPromptForm = false;
+      } catch (err) {
+        console.error('Failed to add prompt:', err);
+      }
+    },
+
+    async deletePrompt(id) {
+      try {
+        await fetch(`/api/prompts/${id}`, { method: 'DELETE' });
+        this.prompts = this.prompts.filter(p => p.id !== id);
+      } catch (err) {
+        console.error('Failed to delete prompt:', err);
+      }
+    },
+
+    async sendPromptToAgent(body) {
+      if (!this.activeTab) return;
+      try {
+        await fetch(`/api/agents/${this.activeTab}/message`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: body }),
+        });
+        this.showPromptLibrary = false;
+      } catch (err) {
+        console.error('Failed to send prompt to agent:', err);
+      }
+    },
+
+    // --- Onboard / Offboard ---
+
+    async launchOnboard() {
+      const projectId = this.onboardProjectId;
+      if (!projectId) return;
+      const prompt = this.prompts.find(p =>
+        this.onboardType === 'new' ? p.title === 'New project setup' : p.title === 'Onboard existing project'
+      );
+      if (!prompt) {
+        alert('Prompt not found in library. Add it first.');
+        return;
+      }
+      try {
+        const res = await fetch('/api/agents/launch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId: parseInt(projectId), customPrompt: prompt.body }),
+        });
+        const data = await res.json();
+        if (!res.ok) { alert(data.error || 'Launch failed'); return; }
+        data.live = true;
+        this.agents.unshift(data);
+        this.subscribe(data.id);
+        this.activeTab = data.id;
+        this.screen = 'agents';
+        this.showOnboardModal = false;
+        this.onboardProjectId = '';
+        this.$nextTick(() => this.focusTerminal(data.id));
+      } catch (err) {
+        alert(`Launch failed: ${err.message}`);
+      }
+    },
+
+    async launchOffboard() {
+      const projectId = this.offboardProjectId;
+      if (!projectId) return;
+      const prompt = this.prompts.find(p => p.title === 'Shutdown project');
+      if (!prompt) {
+        alert('Prompt not found in library. Add it first.');
+        return;
+      }
+      try {
+        const res = await fetch('/api/agents/launch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId: parseInt(projectId), customPrompt: prompt.body }),
+        });
+        const data = await res.json();
+        if (!res.ok) { alert(data.error || 'Launch failed'); return; }
+        data.live = true;
+        this.agents.unshift(data);
+        this.subscribe(data.id);
+        this.activeTab = data.id;
+        this.screen = 'agents';
+        this.showOffboardModal = false;
+        this.offboardProjectId = '';
+        this.$nextTick(() => this.focusTerminal(data.id));
+      } catch (err) {
+        alert(`Launch failed: ${err.message}`);
       }
     },
 

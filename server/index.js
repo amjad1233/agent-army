@@ -6,10 +6,11 @@ import { fileURLToPath } from 'url';
 import { setupWebSocket } from './websocket.js';
 import { seedProjects } from './seed.js';
 import { agentManager } from './services/AgentManager.js';
-import { closeDb } from './services/Database.js';
+import { closeDb, seedDefaultPrompts } from './services/Database.js';
 
 import agentsRouter from './routes/agents.js';
 import broadcastRouter from './routes/broadcast.js';
+import promptsRouter from './routes/prompts.js';
 import githubRouter from './routes/github.js';
 import healthRouter from './routes/health.js';
 
@@ -28,14 +29,16 @@ app.use(express.static(join(__dirname, '../public')));
 // API routes
 app.use('/api/agents', agentsRouter);
 app.use('/api/broadcast', broadcastRouter);
+app.use('/api/prompts', promptsRouter);
 app.use('/api/projects', githubRouter);
 app.use('/health', healthRouter);
 
 // WebSocket
 setupWebSocket(server);
 
-// Auto-seed projects on first boot
+// Auto-seed projects and default prompts on first boot
 seedProjects();
+seedDefaultPrompts();
 
 // Start — find an open port if the default is taken
 server.on('error', (err) => {

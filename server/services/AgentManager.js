@@ -25,9 +25,10 @@ class AgentManager extends EventEmitter {
    * @param {number} projectId
    * @param {number|null} issueNumber
    * @param {string|null} issueTitle
+   * @param {string|null} customPrompt
    * @returns {object} session record
    */
-  launch(projectId, issueNumber = null, issueTitle = null) {
+  launch(projectId, issueNumber = null, issueTitle = null, customPrompt = null) {
     const project = getProject(projectId);
     if (!project) throw new Error(`Project ${projectId} not found`);
 
@@ -44,13 +45,18 @@ class AgentManager extends EventEmitter {
     }
 
     // Build the prompt
-    let prompt = `You are an autonomous agent working on the ${project.name} project.`;
-    if (issueNumber) {
-      prompt += ` Work on issue #${issueNumber}`;
-      if (issueTitle) prompt += `: ${issueTitle}`;
-      prompt += '.';
+    let prompt;
+    if (customPrompt) {
+      prompt = customPrompt;
+    } else {
+      prompt = `You are an autonomous agent working on the ${project.name} project.`;
+      if (issueNumber) {
+        prompt += ` Work on issue #${issueNumber}`;
+        if (issueTitle) prompt += `: ${issueTitle}`;
+        prompt += '.';
+      }
+      prompt += ' Follow the agent protocol in ~/.claude/swarm.md and the project CLAUDE.md.';
     }
-    prompt += ' Follow the agent protocol in ~/.claude/swarm.md and the project CLAUDE.md.';
 
     // Generate a Claude session ID so we can resume later
     const claudeSessionId = randomUUID();
