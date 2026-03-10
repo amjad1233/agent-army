@@ -18,7 +18,9 @@ document.addEventListener('alpine:init', () => {
     showBroadcastModal: false,
     showPromptLibrary: false,
     broadcastText: '',
-    launchForm: { projectId: '', issueNumber: null, issueTitle: '', count: 1 },
+    launchForm: { projectId: '', issueNumber: null, issueTitle: '', prompt: '', count: 1 },
+    projectIssues: [],
+    loadingIssues: false,
 
     prompts: [],
     newPromptTitle: '',
@@ -30,6 +32,13 @@ document.addEventListener('alpine:init', () => {
     onboardProjectId: '',
     showOffboardModal: false,
     offboardProjectId: '',
+
+    showAddProjectModal: false,
+    addProjectForm: { localPath: '', githubProjectNumber: '' },
+    addProjectValidation: { state: 'idle', name: '', repo: '', error: '' }, // idle|checking|valid|error
+    addProjectError: '',
+    addingProject: false,
+    toasts: [],
 
     ws: null,
     wsRetryDelay: 1000,
@@ -70,13 +79,20 @@ document.addEventListener('alpine:init', () => {
     },
 
     get dashboardSubtitle() {
+      const autoPilotCount = this.projects.filter(p => p.autopilot_enabled).length;
+      if (this.runningCount > 0 && autoPilotCount > 0) {
+        return `${this.runningCount} agent${this.runningCount > 1 ? 's' : ''} grinding rn — AutoPilot's got the wheel 🤖`;
+      }
       if (this.runningCount > 0) {
-        return this.runningCount + ' agent' + (this.runningCount > 1 ? 's' : '') + ' running right now.';
+        return `${this.runningCount} agent${this.runningCount > 1 ? 's' : ''} grinding rn.`;
+      }
+      if (autoPilotCount > 0) {
+        return `AutoPilot's watching ${autoPilotCount} project${autoPilotCount > 1 ? 's' : ''} — it'll pick something up.`;
       }
       if (this.agents.length > 0) {
-        return this.agents.length + ' session' + (this.agents.length > 1 ? 's' : '') + ' total. Launch an agent to get started.';
+        return `${this.agents.length} session${this.agents.length > 1 ? 's' : ''} total. Launch one to get going.`;
       }
-      return 'No agents yet. Launch one to get started.';
+      return "Your army's idle. Launch one to get going.";
     },
 
     // --- Theme ---
@@ -123,10 +139,159 @@ document.addEventListener('alpine:init', () => {
     async fetchProjects() {
       try {
         const res = await fetch('/api/projects');
-        this.projects = await res.json();
+        const data = await res.json();
+        this.projects = data.map(p => ({
+          ...p,
+          autopilot_excluded_labels: typeof p.autopilot_excluded_labels === 'string'
+            ? JSON.parse(p.autopilot_excluded_labels || '[]')
+            : (p.autopilot_excluded_labels || []),
+        }));
       } catch (err) {
         console.error('Failed to fetch projects:', err);
       }
+    },
+
+    async validateProjectPath() {
+      const path = this.addProjectForm.localPath.trim();
+      if (!path || path.length < 3) {
+        this.addProjectValidation = { state: 'idle', name: '', repo: '', error: '' };
+        return;
+      }
+      this.addProjectValidation = { state: 'checking', name: '', repo: '', error: '' };
+      try {
+        const res = await fetch('/api/projects/validate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ localPath: path }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          this.addProjectValidation = { state: 'error', name: '', repo: '', error: data.error };
+        } else if (data.alreadyRegistered) {
+          this.addProjectValidation = { state: 'error', name: data.name, repo: data.repo, error: 'Already registered bro' };
+        } else {
+          this.addProjectValidation = { state: 'valid', name: data.name, repo: data.repo, error: '' };
+        }
+      } catch (err) {
+        this.addProjectValidation = { state: 'error', name: '', repo: '', error: 'Could not connect to server' };
+      }
+    },
+
+    async addProject() {
+      if (this.addProjectValidation.state !== 'valid') return;
+      this.addingProject = true;
+      this.addProjectError = '';
+      try {
+        const res = await fetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            localPath: this.addProjectForm.localPath.trim(),
+            githubProjectNumber: this.addProjectForm.githubProjectNumber || null,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          this.addProjectError = data.error || 'Failed to add project';
+          return;
+        }
+        data.autopilot_excluded_labels = JSON.parse(data.autopilot_excluded_labels || '[]');
+        this.projects.push(data);
+        this.showAddProjectModal = false;
+        this.addProjectForm = { localPath: '', githubProjectNumber: '' };
+        this.addProjectValidation = { state: 'idle', name: '', repo: '', error: '' };
+        this.showToast(`${data.name} added to the army 🤙`);
+      } catch (err) {
+        this.addProjectError = `Network error: ${err.message}`;
+      } finally {
+        this.addingProject = false;
+      }
+    },
+
+    async removeProject(id) {
+      if (!confirm('Remove this project from AgentArmy? (Agents will not be affected)')) return;
+      try {
+        const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) {
+          alert(data.error);
+          return;
+        }
+        this.projects = this.projects.filter(p => p.id !== id);
+      } catch (err) {
+        alert(`Failed: ${err.message}`);
+      }
+    },
+
+    async toggleAutopilot(projectId) {
+      const project = this.projects.find(p => p.id === projectId);
+      if (!project) return;
+      const newEnabled = !project.autopilot_enabled;
+      try {
+        const res = await fetch(`/api/projects/${projectId}/autopilot`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            enabled: newEnabled,
+            maxAgents: project.autopilot_max_agents ?? 3,
+            excludedLabels: project.autopilot_excluded_labels ?? [],
+          }),
+        });
+        if (res.ok) {
+          project.autopilot_enabled = newEnabled ? 1 : 0;
+          if (newEnabled) this.showToast(`AutoPilot on for ${project.name} — army's self-running now 🤖`);
+        }
+      } catch (err) {
+        console.error('Failed to toggle autopilot:', err);
+      }
+    },
+
+    async updateAutopilotMax(projectId, delta) {
+      const project = this.projects.find(p => p.id === projectId);
+      if (!project) return;
+      const newMax = Math.max(1, Math.min(10, (project.autopilot_max_agents ?? 3) + delta));
+      project.autopilot_max_agents = newMax;
+      try {
+        await fetch(`/api/projects/${projectId}/autopilot`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            enabled: !!project.autopilot_enabled,
+            maxAgents: newMax,
+            excludedLabels: project.autopilot_excluded_labels ?? [],
+          }),
+        });
+      } catch (err) {
+        console.error('Failed to update max agents:', err);
+      }
+    },
+
+    showToast(message, duration = 4000) {
+      const id = Date.now();
+      this.toasts.push({ id, message });
+      setTimeout(() => {
+        this.toasts = this.toasts.filter(t => t.id !== id);
+      }, duration);
+    },
+
+    async fetchProjectIssues(projectId) {
+      if (!projectId) { this.projectIssues = []; return; }
+      this.loadingIssues = true;
+      this.projectIssues = [];
+      try {
+        const res = await fetch(`/api/projects/${projectId}/issues`);
+        if (res.ok) this.projectIssues = await res.json();
+      } catch (err) {
+        console.error('Failed to fetch issues:', err);
+      } finally {
+        this.loadingIssues = false;
+      }
+    },
+
+    selectIssue(issue) {
+      this.launchForm.issueNumber = issue.number;
+      this.launchForm.issueTitle = issue.title;
+      this.launchForm.prompt = `Fix GitHub issue #${issue.number}: ${issue.title}\n\nCreate a PR when done.`;
     },
 
     async fetchAgents() {
@@ -140,7 +305,7 @@ document.addEventListener('alpine:init', () => {
     },
 
     async launchAgent() {
-      const { projectId, issueNumber, issueTitle, count } = this.launchForm;
+      const { projectId, issueNumber, issueTitle, prompt, count } = this.launchForm;
       if (!projectId) return;
 
       const total = Math.max(1, Math.min(count || 1, 10));
@@ -157,6 +322,7 @@ document.addEventListener('alpine:init', () => {
               projectId: parseInt(projectId),
               issueNumber: issueNumber || null,
               issueTitle: issueTitle || null,
+              customPrompt: prompt || null,
             }),
           });
           const data = await res.json();
@@ -173,7 +339,8 @@ document.addEventListener('alpine:init', () => {
         this.activeTab = lastId;
         this.screen = 'agents';
         this.showLaunchModal = false;
-        this.launchForm = { projectId: '', issueNumber: null, issueTitle: '', count: 1 };
+        this.launchForm = { projectId: '', issueNumber: null, issueTitle: '', prompt: '', count: 1 };
+        this.projectIssues = [];
         // Focus terminal after render
         this.$nextTick(() => this.focusTerminal(lastId));
       } catch (err) {
@@ -494,6 +661,16 @@ document.addEventListener('alpine:init', () => {
 
         if (msg.type === 'launched') {
           this.fetchAgents();
+        }
+
+        if (msg.type === 'autopilot:launched') {
+          this.showToast(`AutoPilot picked up #${msg.issueNumber} — let's get it 🤙`);
+          this.fetchAgents();
+        }
+
+        if (msg.type === 'autopilot:idle') {
+          const project = this.projects.find(p => p.id === msg.projectId);
+          if (project) this.showToast(`Nothing left boss, ${project.name}'s army is chilling`);
         }
       };
 
