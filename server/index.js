@@ -2,6 +2,7 @@ import 'dotenv/config';
 
 import { createServer } from 'http';
 import express from 'express';
+import morgan from 'morgan';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -25,6 +26,9 @@ const server = createServer(app);
 // Middleware
 app.use(express.json());
 
+// Request logging
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+
 // Static files
 app.use(express.static(join(__dirname, '../public')));
 
@@ -41,6 +45,17 @@ setupWebSocket(server);
 // Auto-seed projects and default prompts on first boot
 seedProjects();
 seedDefaultPrompts();
+
+// Global error handler — must be last middleware
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, _next) => {
+  const status = err.status || err.statusCode || 500;
+  const message = process.env.NODE_ENV === 'production' && status === 500
+    ? 'Internal server error'
+    : err.message;
+  console.error(`[ERROR] ${req.method} ${req.url} →`, err);
+  res.status(status).json({ error: message });
+});
 
 // Start — find an open port if the default is taken
 server.on('error', (err) => {
