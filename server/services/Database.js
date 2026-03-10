@@ -20,17 +20,17 @@ export function getDb() {
     instance.exec(schema);
 
     // Migrate: add claude_session_id if missing (for existing DBs)
-    const cols = instance.prepare("PRAGMA table_info(agent_sessions)").all();
+    const cols = instance.prepare('PRAGMA table_info(agent_sessions)').all();
     if (!cols.find(c => c.name === 'claude_session_id')) {
       instance.exec('ALTER TABLE agent_sessions ADD COLUMN claude_session_id TEXT');
     }
 
     // Migrate: add autopilot columns to projects (for existing DBs)
-    const projectCols = instance.prepare("PRAGMA table_info(projects)").all().map(c => c.name);
+    const projectCols = instance.prepare('PRAGMA table_info(projects)').all().map(c => c.name);
     if (!projectCols.includes('autopilot_enabled')) {
       instance.exec('ALTER TABLE projects ADD COLUMN autopilot_enabled INTEGER DEFAULT 0');
       instance.exec('ALTER TABLE projects ADD COLUMN autopilot_max_agents INTEGER DEFAULT 3');
-      instance.exec(`ALTER TABLE projects ADD COLUMN autopilot_excluded_labels TEXT DEFAULT '["still thinking","wip","blocked"]'`);
+      instance.exec('ALTER TABLE projects ADD COLUMN autopilot_excluded_labels TEXT DEFAULT \'["still thinking","wip","blocked"]\'');
     }
   }
   return instance;
@@ -223,7 +223,7 @@ CONSTRAINTS:
 - Never force-push
 - If merge conflict during rebase → abort rebase, report conflict, and stop
 - If dependency not started → report and stop
-- Run \`cr review\` BEFORE pushing — fix issues locally, not after PR`,
+- Run \`cr review\` BEFORE pushing — fix issues locally, not after PR`
     },
     {
       title: 'Specific issue (#N)',
@@ -254,7 +254,7 @@ CONSTRAINTS:
 - Never force-push
 - If merge conflict during rebase → abort rebase, report conflict, and stop
 - If dependency not started → report and stop
-- Run \`cr review\` BEFORE pushing — fix issues locally, not after PR`,
+- Run \`cr review\` BEFORE pushing — fix issues locally, not after PR`
     },
     {
       title: 'New project setup',
@@ -288,7 +288,7 @@ DO THE FOLLOWING:
 
 5. VERIFY:
    - Commit and push CLAUDE.md
-   - Print a summary: repo URL, board URL, number of issues, and the launch command`,
+   - Print a summary: repo URL, board URL, number of issues, and the launch command`
     },
     {
       title: 'Onboard existing project',
@@ -327,7 +327,7 @@ DO THE FOLLOWING:
    - Commit CLAUDE.md (only file that should be new)
    - Print summary: repo URL, board URL, issues created, launch command
 
-DO NOT: Modify any existing code, restructure the project, add dependencies, or change the README.`,
+DO NOT: Modify any existing code, restructure the project, add dependencies, or change the README.`
     },
     {
       title: 'Shutdown project',
@@ -361,8 +361,8 @@ DO THE FOLLOWING:
    - Print what was cleaned up: issues closed, PRs merged, branches deleted, worktrees removed
    - Confirm the project is no longer in the swarm registry
 
-Ask me before doing anything destructive (deleting branches, archiving repo, closing issues).`,
-    },
+Ask me before doing anything destructive (deleting branches, archiving repo, closing issues).`
+    }
   ];
 
   const stmt = getDb().prepare('INSERT INTO prompts (title, body) VALUES (?, ?)');

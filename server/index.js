@@ -51,7 +51,7 @@ seedProjects();
 seedDefaultPrompts();
 
 // Global error handler — must be last middleware
-// eslint-disable-next-line no-unused-vars
+
 app.use((err, req, res, _next) => {
   const status = err.status || err.statusCode || 500;
   const message = process.env.NODE_ENV === 'production' && status === 500

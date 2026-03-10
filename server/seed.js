@@ -6,22 +6,22 @@ const SEED_PROJECTS = [
     repo: 'amjad1233/luma',
     localPath: '/Users/amjad/sites/personal/luma',
     githubProjectId: 'PVT_kwHOAAoWms4BQYpB',
-    githubProjectNumber: 2,
+    githubProjectNumber: 2
   },
   {
     name: 'Tractivity',
     repo: 'amjad1233/tractivity',
     localPath: '/Users/amjad/sites/personal/tractivity',
     githubProjectId: 'PVT_kwHOAAoWms4Azc8R',
-    githubProjectNumber: 1,
+    githubProjectNumber: 1
   },
   {
     name: 'AgentArmy',
     repo: 'amjad1233/agent-army',
     localPath: '/Users/amjad/sites/personal/agent-army',
     githubProjectId: 'PVT_kwHOAAoWms4BQdEt',
-    githubProjectNumber: 3,
-  },
+    githubProjectNumber: 3
+  }
 ];
 
 export function seedProjects() {

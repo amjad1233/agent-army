@@ -7,8 +7,7 @@ import {
   createSession,
   updateSessionStatus,
   getSession,
-  getActiveSessions,
-  getProject,
+  getProject
 } from './Database.js';
 
 const MAX_LOG_BYTES = 100 * 1024; // ~100KB circular buffer per agent
@@ -68,7 +67,7 @@ class AgentManager extends EventEmitter {
       cols: 120,
       rows: 40,
       cwd: project.local_path,
-      env: { ...process.env, FORCE_COLOR: '1' },
+      env: { ...process.env, FORCE_COLOR: '1' }
     });
 
     // Send the initial prompt after user accepts the permissions prompt.
@@ -93,7 +92,7 @@ class AgentManager extends EventEmitter {
       pid: proc.pid,
       worktreePath: null,
       branchName: null,
-      claudeSessionId,
+      claudeSessionId
     });
 
     // Set up log buffer
@@ -169,7 +168,6 @@ class AgentManager extends EventEmitter {
     }, 5000);
 
     // Clean up on exit (onExit handler above updates DB)
-    const origOnExit = agent.pty.onExit;
     agent.pty.onExit(({ exitCode }) => {
       clearTimeout(forceKillTimer);
       updateSessionStatus(sessionId, 'stopped');
@@ -202,7 +200,7 @@ class AgentManager extends EventEmitter {
       cols: 120,
       rows: 40,
       cwd: project.local_path,
-      env: { ...process.env, FORCE_COLOR: '1' },
+      env: { ...process.env, FORCE_COLOR: '1' }
     });
 
     // Create a new DB session linked to the same claude_session_id
@@ -213,7 +211,7 @@ class AgentManager extends EventEmitter {
       pid: proc.pid,
       worktreePath: oldSession.worktree_path,
       branchName: oldSession.branch_name,
-      claudeSessionId,
+      claudeSessionId
     });
 
     const agent = { pty: proc, log: [], logBytes: 0 };
@@ -246,7 +244,7 @@ class AgentManager extends EventEmitter {
    */
   broadcast(message) {
     let count = 0;
-    for (const [sessionId, agent] of this.agents) {
+    for (const [_sessionId, agent] of this.agents) {
       agent.pty.write(message);
       setTimeout(() => agent.pty.write('\r'), 100);
       count++;

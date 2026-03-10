@@ -111,7 +111,7 @@ class AutoPilot extends EventEmitter {
         projectId,
         issueNumber: pick.number,
         issueTitle: pick.title,
-        sessionId: session.id,
+        sessionId: session.id
       });
     } catch (err) {
       console.error(`[AutoPilot] Launch failed for #${pick.number}:`, err.message);

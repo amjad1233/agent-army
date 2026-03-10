@@ -5,7 +5,7 @@ describe('detectProject — remote URL parsing', () => {
   const cases = [
     ['https://github.com/amjad1233/my-app.git', 'amjad1233/my-app'],
     ['https://github.com/amjad1233/my-app', 'amjad1233/my-app'],
-    ['git@github.com:amjad1233/my-app.git', 'amjad1233/my-app'],
+    ['git@github.com:amjad1233/my-app.git', 'amjad1233/my-app']
   ];
 
   for (const [url, expected] of cases) {

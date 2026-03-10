@@ -9,7 +9,7 @@ router.get('/', (req, res) => {
   res.json({
     status: 'ok',
     uptime: Math.floor((Date.now() - startedAt) / 1000),
-    runningAgents: agentManager.runningCount,
+    runningAgents: agentManager.runningCount
   });
 });
 

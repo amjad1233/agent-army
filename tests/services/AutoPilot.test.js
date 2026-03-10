@@ -17,7 +17,7 @@ describe('AutoPilot — issue filtering', () => {
   it('excludes issues with excluded labels', () => {
     const issues = [
       { number: 1, title: 'Do thing', labels: [{ name: 'still thinking' }] },
-      { number: 2, title: 'Do other thing', labels: [] },
+      { number: 2, title: 'Do other thing', labels: [] }
     ];
     const result = filterIssues(issues, new Set(), new Set());
     expect(result).toHaveLength(1);
@@ -27,7 +27,7 @@ describe('AutoPilot — issue filtering', () => {
   it('excludes issues already being worked on', () => {
     const issues = [
       { number: 1, title: 'Active', labels: [] },
-      { number: 2, title: 'Available', labels: [] },
+      { number: 2, title: 'Available', labels: [] }
     ];
     const result = filterIssues(issues, new Set([1]), new Set());
     expect(result).toHaveLength(1);
@@ -37,7 +37,7 @@ describe('AutoPilot — issue filtering', () => {
   it('excludes issues in the skip list', () => {
     const issues = [
       { number: 1, title: 'Failed twice', labels: [] },
-      { number: 2, title: 'Fresh', labels: [] },
+      { number: 2, title: 'Fresh', labels: [] }
     ];
     const result = filterIssues(issues, new Set(), new Set(['1-1']));
     expect(result).toHaveLength(1);
@@ -47,7 +47,7 @@ describe('AutoPilot — issue filtering', () => {
   it('picks oldest issue (last in array)', () => {
     const issues = [
       { number: 5, title: 'Newest', labels: [] },
-      { number: 2, title: 'Oldest', labels: [] },
+      { number: 2, title: 'Oldest', labels: [] }
     ];
     const available = filterIssues(issues, new Set(), new Set());
     const pick = available[available.length - 1];
@@ -56,7 +56,7 @@ describe('AutoPilot — issue filtering', () => {
 
   it('returns empty when all issues are filtered', () => {
     const issues = [
-      { number: 1, title: 'Blocked', labels: [{ name: 'wip' }] },
+      { number: 1, title: 'Blocked', labels: [{ name: 'wip' }] }
     ];
     const result = filterIssues(issues, new Set(), new Set());
     expect(result).toHaveLength(0);

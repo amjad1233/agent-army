@@ -31,7 +31,7 @@ export async function detectProject(localPath) {
   try {
     const { stdout } = await execFileAsync('git', ['remote', 'get-url', 'origin'], {
       cwd: localPath,
-      timeout: 5000,
+      timeout: 5000
     });
     remoteUrl = stdout.trim();
   } catch {

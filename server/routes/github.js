@@ -8,7 +8,7 @@ import {
   deleteProject,
   getProjectByPath,
   updateProjectAutopilot,
-  getActiveSessions,
+  getActiveSessions
 } from '../services/Database.js';
 import { getIssues, getPrs } from '../services/GitHubService.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -85,7 +85,7 @@ router.post('/', asyncHandler(async (req, res) => {
     repo,
     localPath: path,
     githubProjectId,
-    githubProjectNumber: githubProjectNumber || null,
+    githubProjectNumber: githubProjectNumber || null
   });
 
   const project = getProject(result.lastInsertRowid);
@@ -102,7 +102,7 @@ router.delete('/:id', asyncHandler(async (req, res) => {
   const active = getActiveSessions().filter(s => s.project_id === id);
   if (active.length > 0) {
     return res.status(409).json({
-      error: `Cannot remove project — ${active.length} agent(s) still running on it`,
+      error: `Cannot remove project — ${active.length} agent(s) still running on it`
     });
   }
 
@@ -130,7 +130,7 @@ router.get('/:id/autopilot', asyncHandler(async (req, res) => {
   res.json({
     enabled: !!project.autopilot_enabled,
     maxAgents: project.autopilot_max_agents ?? 3,
-    excludedLabels: JSON.parse(project.autopilot_excluded_labels || '[]'),
+    excludedLabels: JSON.parse(project.autopilot_excluded_labels || '[]')
   });
 }));
 
