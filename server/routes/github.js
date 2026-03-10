@@ -14,6 +14,7 @@ import { getIssues, getPrs } from '../services/GitHubService.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { parseId, validateLocalPath } from '../middleware/validate.js';
 import { detectProject } from '../services/ProjectDetector.js';
+import { autoPilot } from '../services/AutoPilot.js';
 
 const router = Router();
 
@@ -131,6 +132,15 @@ router.get('/:id/autopilot', asyncHandler(async (req, res) => {
     maxAgents: project.autopilot_max_agents ?? 3,
     excludedLabels: JSON.parse(project.autopilot_excluded_labels || '[]'),
   });
+}));
+
+// POST /api/projects/:id/autopilot/kick — manually trigger autopilot check
+router.post('/:id/autopilot/kick', asyncHandler(async (req, res) => {
+  const id = parseId(req.params.id);
+  const project = getProject(id);
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+  autoPilot.kick(id);
+  res.json({ ok: true, message: 'AutoPilot kick triggered' });
 }));
 
 export default router;
