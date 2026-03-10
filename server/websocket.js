@@ -1,5 +1,6 @@
 import { WebSocketServer } from 'ws';
 import { agentManager } from './services/AgentManager.js';
+import { autoPilot } from './services/AutoPilot.js';
 
 /**
  * Set up WebSocket server on an existing HTTP server.
@@ -79,6 +80,14 @@ export function setupWebSocket(server) {
 
   agentManager.on('agent:launched', ({ sessionId, projectId, issueNumber }) => {
     broadcast({ type: 'launched', sessionId, projectId, issueNumber }, null);
+  });
+
+  autoPilot.on('autopilot:launched', ({ projectId, issueNumber, issueTitle, sessionId }) => {
+    broadcast({ type: 'autopilot:launched', projectId, issueNumber, issueTitle, sessionId }, null);
+  });
+
+  autoPilot.on('autopilot:idle', ({ projectId }) => {
+    broadcast({ type: 'autopilot:idle', projectId }, null);
   });
 
   function broadcast(msg, sessionId) {

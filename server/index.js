@@ -10,6 +10,7 @@ import { setupWebSocket } from './websocket.js';
 import { seedProjects } from './seed.js';
 import { agentManager } from './services/AgentManager.js';
 import { closeDb, seedDefaultPrompts } from './services/Database.js';
+import { autoPilot } from './services/AutoPilot.js';
 
 import agentsRouter from './routes/agents.js';
 import broadcastRouter from './routes/broadcast.js';
@@ -41,6 +42,9 @@ app.use('/health', healthRouter);
 
 // WebSocket
 setupWebSocket(server);
+
+// Attach AutoPilot — must happen after AgentManager is initialized
+autoPilot.attach();
 
 // Auto-seed projects and default prompts on first boot
 seedProjects();
