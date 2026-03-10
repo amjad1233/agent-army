@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 import { createServer } from 'http';
 import express from 'express';
 import { join, dirname } from 'path';
