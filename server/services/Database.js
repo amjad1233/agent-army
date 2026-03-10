@@ -24,6 +24,14 @@ export function getDb() {
     if (!cols.find(c => c.name === 'claude_session_id')) {
       instance.exec('ALTER TABLE agent_sessions ADD COLUMN claude_session_id TEXT');
     }
+
+    // Migrate: add autopilot columns to projects (for existing DBs)
+    const projectCols = instance.prepare("PRAGMA table_info(projects)").all().map(c => c.name);
+    if (!projectCols.includes('autopilot_enabled')) {
+      instance.exec('ALTER TABLE projects ADD COLUMN autopilot_enabled INTEGER DEFAULT 0');
+      instance.exec('ALTER TABLE projects ADD COLUMN autopilot_max_agents INTEGER DEFAULT 3');
+      instance.exec(`ALTER TABLE projects ADD COLUMN autopilot_excluded_labels TEXT DEFAULT '["still thinking","wip","blocked"]'`);
+    }
   }
   return instance;
 }
@@ -49,6 +57,27 @@ export function insertProject({ name, repo, localPath, githubProjectId, githubPr
 
 export function projectCount() {
   return getDb().prepare('SELECT COUNT(*) as count FROM projects').get().count;
+}
+
+export function deleteProject(id) {
+  const result = getDb().prepare('DELETE FROM projects WHERE id = ?').run(id);
+  return result.changes;
+}
+
+export function getProjectByPath(localPath) {
+  return getDb().prepare('SELECT * FROM projects WHERE local_path = ?').get(localPath);
+}
+
+export function updateProjectAutopilot(id, { enabled, maxAgents, excludedLabels }) {
+  getDb()
+    .prepare(
+      `UPDATE projects
+       SET autopilot_enabled = ?,
+           autopilot_max_agents = ?,
+           autopilot_excluded_labels = ?
+       WHERE id = ?`
+    )
+    .run(enabled ? 1 : 0, maxAgents, JSON.stringify(excludedLabels), id);
 }
 
 // --- Agent Sessions ---
