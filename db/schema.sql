@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS projects (
   local_path TEXT NOT NULL,
   github_project_id TEXT,
   github_project_number INTEGER,
+  color TEXT DEFAULT '#3B82F6',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -20,6 +21,7 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
   branch_name TEXT,
   pr_number INTEGER,
   claude_session_id TEXT,
+  agent_name TEXT,
   pid INTEGER,
   started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   finished_at DATETIME,

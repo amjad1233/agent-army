@@ -131,6 +131,20 @@ document.addEventListener('alpine:init', () => {
       return colors[activity] || 'var(--text-3)';
     },
 
+    projectColor(agent) {
+      const project = this.projects.find(p => p.id === agent.project_id);
+      return project?.color || '#3B82F6';
+    },
+
+    projectColorById(projectId) {
+      const project = this.projects.find(p => p.id === projectId);
+      return project?.color || '#3B82F6';
+    },
+
+    agentDisplayName(agent) {
+      return agent.agent_name || `agent-${agent.id}`;
+    },
+
     feedIcon(type) {
       const icons = {
         launched: '\u25B6',
@@ -446,6 +460,44 @@ document.addEventListener('alpine:init', () => {
         if (res.ok) this.activityLog = await res.json();
       } catch (err) {
         console.error('Failed to fetch activity:', err);
+      }
+    },
+
+    async quickLaunch(projectId, count = 1) {
+      // One-click launch using the "Auto-pick issue" prompt
+      const autoPickPrompt = this.prompts.find(p => p.title === 'Auto-pick issue');
+      const prompt = autoPickPrompt ? autoPickPrompt.body : null;
+      const total = Math.max(1, Math.min(count, 10));
+
+      try {
+        let lastId = null;
+        for (let i = 0; i < total; i++) {
+          const res = await fetch('/api/agents/launch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              projectId: parseInt(projectId),
+              issueNumber: null,
+              issueTitle: null,
+              customPrompt: prompt,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            this.showToast(data.error || 'Launch failed', 5000);
+            return;
+          }
+          data.live = true;
+          this.agents.unshift(data);
+          this.subscribe(data.id);
+          lastId = data.id;
+        }
+        this.activeTab = lastId;
+        this.screen = 'agents';
+        this.showToast(`Deployed ${total} agent${total > 1 ? 's' : ''} — let's get it`);
+        this.$nextTick(() => this.focusTerminal(lastId));
+      } catch (err) {
+        this.showToast(`Network error: ${err.message}`, 5000);
       }
     },
 

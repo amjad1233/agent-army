@@ -135,14 +135,14 @@
             <p class="text-text2 text-[13px] mt-1" x-text="dashboardSubtitle"></p>
           </div>
           <div class="flex items-center gap-2">
-            <button @click="showOnboardModal = true" class="btn btn-ghost" style="font-size: 12px;">
+            <button @click="showOnboardModal = true" class="btn btn-ghost btn-sm" style="font-size: 11px;">
               Onboard
             </button>
-            <button @click="showOffboardModal = true" class="btn btn-ghost" style="font-size: 12px; color: var(--red);">
+            <button @click="showOffboardModal = true" class="btn btn-ghost btn-sm" style="font-size: 11px; color: var(--red);">
               Offboard
             </button>
-            <button @click="showLaunchModal = true" class="btn btn-outline-green">
-              &#x25B6;&ensp;LAUNCH AGENT
+            <button @click="showLaunchModal = true" class="btn btn-ghost btn-sm" style="font-size: 11px;">
+              Custom Launch
             </button>
           </div>
         </div>
@@ -195,28 +195,26 @@
             <template x-for="agent in runningAgents" :key="agent.id">
               <div
                 class="agent-card cursor-pointer"
+                :style="'border-left: 3px solid ' + projectColor(agent)"
                 @click="screen = 'agents'; activeTab = agent.id; $nextTick(() => focusTerminal(agent.id))"
               >
-                <div>
-                  <div class="text-[13px] text-text1 font-medium mb-1" x-text="agent.project_name"></div>
-                  <div class="mono text-[10px] text-text3 mb-1">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 mb-1">
+                    <span class="mono text-[12px] font-semibold text-text1" x-text="agentDisplayName(agent)"></span>
+                    <span class="mono text-[10px] text-text3" x-text="agent.project_name"></span>
+                  </div>
+                  <div class="mono text-[10px] text-text3 mb-1.5 truncate">
                     <span x-text="agent.issue_title || ('Issue #' + agent.issue_number)" x-show="agent.issue_number"></span>
                     <span x-show="!agent.issue_number" x-text="agent.project_repo"></span>
                   </div>
-                  <div class="flex items-center gap-2">
+                  <div class="flex items-center gap-3">
                     <span
                       class="activity-badge"
                       :style="'color:' + activityColor(agent.activity || 'thinking')"
                       x-text="activityLabel(agent.activity || 'thinking')"
                     ></span>
+                    <span class="mono text-[10px] text-text3" x-text="formatElapsed(agent.started_at)"></span>
                   </div>
-                </div>
-                <div class="flex flex-col items-end gap-1">
-                  <span class="mono text-[11px] text-text2" x-text="formatElapsed(agent.started_at)"></span>
-                  <span class="badge badge-running">
-                    <span class="badge-dot"></span>
-                    Running
-                  </span>
                 </div>
               </div>
             </template>
@@ -268,24 +266,29 @@
 
         <div class="grid grid-cols-2 gap-3">
           <template x-for="project in projects" :key="project.id">
-            <div class="card" style="padding: 16px 18px; position: relative;">
+            <div class="card project-card" style="padding: 16px 18px; position: relative;" :style="'border-left: 3px solid ' + (project.color || '#3B82F6')">
               <!-- Remove button -->
               <button
                 @click.stop="removeProject(project.id)"
-                class="absolute"
-                style="top: 10px; right: 10px; color: var(--text-3); font-size: 14px; line-height: 1; background: none; border: none; cursor: pointer; opacity: 0; transition: opacity 0.15s;"
-                x-init="$el.parentElement.addEventListener('mouseenter', () => $el.style.opacity = 1); $el.parentElement.addEventListener('mouseleave', () => $el.style.opacity = 0)"
+                class="absolute project-card-remove"
+                style="top: 10px; right: 10px; color: var(--text-3); font-size: 14px; line-height: 1; background: none; border: none; cursor: pointer;"
                 title="Remove project"
               >&times;</button>
 
               <!-- Project info -->
-              <div class="text-[13px] font-medium text-text1 mb-0.5 pr-5" x-text="project.name"></div>
+              <div class="flex items-center gap-2 mb-0.5 pr-5">
+                <div class="text-[13px] font-medium text-text1" x-text="project.name"></div>
+              </div>
               <div class="mono text-[10px] text-text3 mb-3" x-text="project.repo"></div>
 
-              <!-- AutoPilot toggle -->
-              <div class="flex items-center justify-between">
+              <!-- Quick launch + AutoPilot row -->
+              <div class="flex items-center justify-between mb-2">
+                <button
+                  @click="quickLaunch(project.id)"
+                  class="btn btn-sm"
+                  :style="'background:' + (project.color || '#3B82F6') + '; color: #fff; border: none; font-size: 10px; padding: 4px 10px;'"
+                >Deploy Agent</button>
                 <div class="flex items-center gap-2">
-                  <!-- Toggle switch -->
                   <button
                     @click="toggleAutopilot(project.id)"
                     class="relative flex-shrink-0"
@@ -302,24 +305,24 @@
                   <span
                     class="mono text-[10px]"
                     :class="project.autopilot_enabled ? 'text-green' : 'text-text3'"
-                    x-text="project.autopilot_enabled ? 'AutoPilot ON' : 'AutoPilot off'"
+                    x-text="project.autopilot_enabled ? 'Auto' : 'Auto'"
                   ></span>
                 </div>
+              </div>
 
-                <!-- Max agents (only when autopilot on) -->
-                <div x-show="project.autopilot_enabled" class="flex items-center gap-1">
-                  <button
-                    @click="updateAutopilotMax(project.id, -1)"
-                    class="mono text-[12px] text-text3"
-                    style="background: none; border: 1px solid var(--border); border-radius: 4px; width: 18px; height: 18px; line-height: 1; cursor: pointer;"
-                  >−</button>
-                  <span class="mono text-[11px] text-text2" x-text="(project.autopilot_max_agents ?? 3) + ' max'"></span>
-                  <button
-                    @click="updateAutopilotMax(project.id, 1)"
-                    class="mono text-[12px] text-text3"
-                    style="background: none; border: 1px solid var(--border); border-radius: 4px; width: 18px; height: 18px; line-height: 1; cursor: pointer;"
-                  >+</button>
-                </div>
+              <!-- Max agents (only when autopilot on) -->
+              <div x-show="project.autopilot_enabled" class="flex items-center gap-1">
+                <button
+                  @click="updateAutopilotMax(project.id, -1)"
+                  class="mono text-[12px] text-text3"
+                  style="background: none; border: 1px solid var(--border); border-radius: 4px; width: 18px; height: 18px; line-height: 1; cursor: pointer;"
+                >−</button>
+                <span class="mono text-[11px] text-text2" x-text="(project.autopilot_max_agents ?? 3) + ' max'"></span>
+                <button
+                  @click="updateAutopilotMax(project.id, 1)"
+                  class="mono text-[12px] text-text3"
+                  style="background: none; border: 1px solid var(--border); border-radius: 4px; width: 18px; height: 18px; line-height: 1; cursor: pointer;"
+                >+</button>
               </div>
             </div>
           </template>
@@ -339,15 +342,13 @@
         <div class="label mb-3">Session History</div>
         <div class="card" x-show="agents.length > 0">
           <template x-for="agent in agents" :key="agent.id">
-            <div class="history-row">
+            <div class="history-row" :style="'border-left: 3px solid ' + projectColor(agent)">
               <div class="flex items-center gap-3.5">
-                <span
-                  class="mono text-[11px] text-text3"
-                  x-text="'#' + agent.id"
-                  style="min-width: 32px;"
-                ></span>
                 <div>
-                  <div class="text-[13px] font-medium text-text1" x-text="agent.project_name"></div>
+                  <div class="flex items-center gap-2">
+                    <span class="mono text-[12px] font-semibold text-text1" x-text="agentDisplayName(agent)"></span>
+                    <span class="mono text-[10px] text-text3" x-text="agent.project_name"></span>
+                  </div>
                   <div class="text-[11px] text-text3" x-text="agent.issue_title || (agent.issue_number ? 'Issue #' + agent.issue_number : agent.project_repo)"></div>
                 </div>
               </div>
@@ -461,6 +462,10 @@
             :class="{ 'active': activeTab === agent.id }"
           >
             <span
+              class="tab-color-bar"
+              :style="'background:' + projectColor(agent)"
+            ></span>
+            <span
               class="status-dot"
               :class="{
                 'status-dot-running': agent.live,
@@ -469,9 +474,9 @@
                 'status-dot-stopped': agent.status === 'stopped',
               }"
             ></span>
-            <span x-text="agent.project_name"></span>
-            <span x-show="agent.issue_number" class="text-text3 mono text-[11px]" x-text="'#' + agent.issue_number"></span>
-            <span x-show="agent.live" class="mono text-[10px]" :style="'color:' + activityColor(agent.activity || 'thinking')" x-text="activityLabel(agent.activity || 'thinking')"></span>
+            <span class="mono text-[11px] font-semibold" x-text="agentDisplayName(agent)"></span>
+            <span class="text-text3 text-[10px]" x-text="agent.project_name"></span>
+            <span x-show="agent.live" class="mono text-[9px]" :style="'color:' + activityColor(agent.activity || 'thinking')" x-text="activityLabel(agent.activity || 'thinking')"></span>
             <span
               @click.stop="closeTab(agent.id)"
               class="tab-close"
@@ -499,8 +504,9 @@
             class="absolute inset-0 flex flex-col"
           >
             <!-- Terminal status bar -->
-            <div class="terminal-status-bar flex-shrink-0">
+            <div class="terminal-status-bar flex-shrink-0" :style="'border-top: 2px solid ' + projectColor(agent)">
               <div class="flex items-center gap-3">
+                <span class="mono text-[12px] font-bold" :style="'color:' + projectColor(agent)" x-text="agentDisplayName(agent)"></span>
                 <span
                   class="badge"
                   :class="{
@@ -519,8 +525,7 @@
                   :style="'color:' + activityColor(agent.activity || 'thinking')"
                   x-text="activityLabel(agent.activity || 'thinking')"
                 ></span>
-                <span class="mono text-[11px] text-text3" x-text="agent.project_repo"></span>
-                <span class="mono text-[11px] text-text3" x-text="'PID ' + agent.pid"></span>
+                <span class="mono text-[11px] text-text3" x-text="agent.project_name"></span>
                 <span x-show="agent.live" class="mono text-[11px] text-text2" x-text="formatElapsed(agent.started_at)"></span>
               </div>
               <div class="flex items-center gap-2">

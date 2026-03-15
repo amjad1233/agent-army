@@ -761,6 +761,21 @@ input:focus, select:focus, textarea:focus {
   flex-shrink: 0;
 }
 
+/* ─── TAB COLOR BAR ──────────────────────────────────────── */
+
+.tab-color-bar {
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* ─── PROJECT CARD ───────────────────────────────────────── */
+
+.project-card:hover .project-card-remove {
+  opacity: 1 !important;
+}
+
 /* ─── PR SECTION ─────────────────────────────────────────── */
 
 .fadeUp-5 { animation-delay: 0.25s; }

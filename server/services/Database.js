@@ -32,9 +32,48 @@ export function getDb() {
       instance.exec('ALTER TABLE projects ADD COLUMN autopilot_max_agents INTEGER DEFAULT 3');
       instance.exec('ALTER TABLE projects ADD COLUMN autopilot_excluded_labels TEXT DEFAULT \'["still thinking","wip","blocked"]\'');
     }
+
+    // Migrate: add agent_name to sessions
+    if (!cols.find(c => c.name === 'agent_name')) {
+      instance.exec('ALTER TABLE agent_sessions ADD COLUMN agent_name TEXT');
+    }
+
+    // Migrate: add color to projects
+    if (!projectCols.includes('color')) {
+      instance.exec("ALTER TABLE projects ADD COLUMN color TEXT DEFAULT '#3B82F6'");
+      // Assign colors to existing projects
+      const PROJECT_COLORS = ['#EF4444', '#F59E0B', '#22C55E', '#3B82F6', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316'];
+      const existing = instance.prepare('SELECT id FROM projects ORDER BY id').all();
+      const colorStmt = instance.prepare('UPDATE projects SET color = ? WHERE id = ?');
+      existing.forEach((p, i) => colorStmt.run(PROJECT_COLORS[i % PROJECT_COLORS.length], p.id));
+    }
   }
   return instance;
 }
+
+// --- Agent Name Generator ---
+
+const ADJECTIVES = [
+  'swift', 'bold', 'iron', 'shadow', 'silent', 'steel', 'crimson', 'phantom',
+  'ghost', 'fierce', 'rapid', 'brave', 'rogue', 'sharp', 'storm', 'titan',
+  'viper', 'apex', 'nova', 'blaze', 'frost', 'dark', 'neon', 'cyber',
+  'atomic', 'turbo', 'hyper', 'ultra', 'mega', 'sonic', 'alpha', 'omega'
+];
+
+const NOUNS = [
+  'falcon', 'wolf', 'eagle', 'hawk', 'panther', 'cobra', 'jaguar', 'phoenix',
+  'tiger', 'raptor', 'sentinel', 'striker', 'ranger', 'scout', 'vanguard',
+  'shield', 'arrow', 'blade', 'sphinx', 'cipher', 'spectre', 'lynx',
+  'mantis', 'kraken', 'condor', 'puma', 'orca', 'raven', 'fox', 'bear'
+];
+
+export function generateAgentName() {
+  const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
+  return `${adj}-${noun}`;
+}
+
+const PROJECT_COLORS = ['#EF4444', '#F59E0B', '#22C55E', '#3B82F6', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316'];
 
 // --- Projects ---
 
@@ -47,12 +86,14 @@ export function getProject(id) {
 }
 
 export function insertProject({ name, repo, localPath, githubProjectId, githubProjectNumber }) {
+  const count = projectCount();
+  const color = PROJECT_COLORS[count % PROJECT_COLORS.length];
   return getDb()
     .prepare(
-      `INSERT INTO projects (name, repo, local_path, github_project_id, github_project_number)
-       VALUES (?, ?, ?, ?, ?)`
+      `INSERT INTO projects (name, repo, local_path, github_project_id, github_project_number, color)
+       VALUES (?, ?, ?, ?, ?, ?)`
     )
-    .run(name, repo, localPath, githubProjectId, githubProjectNumber);
+    .run(name, repo, localPath, githubProjectId, githubProjectNumber, color);
 }
 
 export function projectCount() {
@@ -82,13 +123,14 @@ export function updateProjectAutopilot(id, { enabled, maxAgents, excludedLabels 
 
 // --- Agent Sessions ---
 
-export function createSession({ projectId, issueNumber, issueTitle, pid, worktreePath, branchName, claudeSessionId }) {
+export function createSession({ projectId, issueNumber, issueTitle, pid, worktreePath, branchName, claudeSessionId, agentName }) {
+  const name = agentName || generateAgentName();
   const result = getDb()
     .prepare(
-      `INSERT INTO agent_sessions (project_id, issue_number, issue_title, pid, worktree_path, branch_name, claude_session_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO agent_sessions (project_id, issue_number, issue_title, pid, worktree_path, branch_name, claude_session_id, agent_name)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(projectId, issueNumber || null, issueTitle || null, pid, worktreePath || null, branchName || null, claudeSessionId || null);
+    .run(projectId, issueNumber || null, issueTitle || null, pid, worktreePath || null, branchName || null, claudeSessionId || null, name);
   return result.lastInsertRowid;
 }
 
