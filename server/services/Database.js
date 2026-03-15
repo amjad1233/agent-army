@@ -371,6 +371,20 @@ Ask me before doing anything destructive (deleting branches, archiving repo, clo
   }
 }
 
+// --- Activity Log ---
+
+export function insertActivity(type, projectName, message, metadata = null) {
+  return getDb()
+    .prepare('INSERT INTO activity_log (type, project_name, message, metadata_json) VALUES (?, ?, ?, ?)')
+    .run(type, projectName, message, metadata ? JSON.stringify(metadata) : null);
+}
+
+export function getRecentActivity(limit = 50) {
+  return getDb()
+    .prepare('SELECT * FROM activity_log ORDER BY created_at DESC LIMIT ?')
+    .all(limit);
+}
+
 // --- Cleanup ---
 
 export function closeDb() {

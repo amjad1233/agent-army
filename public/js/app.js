@@ -10,9 +10,12 @@ document.addEventListener('alpine:init', () => {
 
     agents: [],
     projects: [],
+    prs: [],
+    activityLog: [],
     terminals: {},
     pendingLogs: {},  // buffer log data for terminals not yet initialized
     activeTab: null,
+    now: Date.now(), // reactive timestamp for elapsed time
 
     showLaunchModal: false,
     showBroadcastModal: false,
@@ -71,6 +74,96 @@ document.addEventListener('alpine:init', () => {
       return pct + '%';
     },
 
+    get openPrCount() {
+      return this.prs.filter(pr => pr.state === 'open').length;
+    },
+
+    get approvedPrCount() {
+      return this.prs.filter(pr => pr.reviewDecision === 'APPROVED').length;
+    },
+
+    get pendingPrCount() {
+      return this.prs.filter(pr => pr.state === 'open' && pr.reviewDecision !== 'APPROVED').length;
+    },
+
+    formatElapsed(startedAt) {
+      if (!startedAt) return '';
+      const start = new Date(startedAt).getTime();
+      const diff = Math.max(0, Math.floor((this.now - start) / 1000));
+      if (diff < 60) return `${diff}s`;
+      if (diff < 3600) return `${Math.floor(diff / 60)}m ${diff % 60}s`;
+      const h = Math.floor(diff / 3600);
+      const m = Math.floor((diff % 3600) / 60);
+      return `${h}h ${m}m`;
+    },
+
+    formatDuration(startedAt, finishedAt) {
+      if (!startedAt || !finishedAt) return '';
+      const diff = Math.max(0, Math.floor((new Date(finishedAt) - new Date(startedAt)) / 1000));
+      if (diff < 60) return `${diff}s`;
+      if (diff < 3600) return `${Math.floor(diff / 60)}m ${diff % 60}s`;
+      const h = Math.floor(diff / 3600);
+      const m = Math.floor((diff % 3600) / 60);
+      return `${h}h ${m}m`;
+    },
+
+    activityLabel(activity) {
+      const labels = {
+        thinking: 'Thinking...',
+        reading: 'Reading...',
+        writing: 'Writing code...',
+        running_command: 'Running command...',
+        creating_pr: 'Creating PR...',
+        idle: 'Idle',
+      };
+      return labels[activity] || activity;
+    },
+
+    activityColor(activity) {
+      const colors = {
+        thinking: 'var(--text-3)',
+        reading: 'var(--blue)',
+        writing: 'var(--green)',
+        running_command: 'var(--amber)',
+        creating_pr: 'var(--purple)',
+        idle: 'var(--text-3)',
+      };
+      return colors[activity] || 'var(--text-3)';
+    },
+
+    feedIcon(type) {
+      const icons = {
+        launched: '\u25B6',
+        completed: '\u2713',
+        failed: '\u2717',
+        stopped: '\u25A0',
+        broadcast: '\u25C8',
+        autopilot: '\u2699',
+      };
+      return icons[type] || '\u2022';
+    },
+
+    feedColor(type) {
+      const colors = {
+        launched: 'var(--green)',
+        completed: 'var(--blue)',
+        failed: 'var(--red)',
+        stopped: 'var(--amber)',
+        broadcast: 'var(--purple)',
+        autopilot: 'var(--green)',
+      };
+      return colors[type] || 'var(--text-3)';
+    },
+
+    formatTimeAgo(dateStr) {
+      const diff = Math.floor((this.now - new Date(dateStr).getTime()) / 1000);
+      if (diff < 5) return 'just now';
+      if (diff < 60) return `${diff}s ago`;
+      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+      return `${Math.floor(diff / 86400)}d ago`;
+    },
+
     get greeting() {
       const hour = new Date().getHours();
       if (hour < 12) return 'Good morning';
@@ -125,13 +218,38 @@ document.addEventListener('alpine:init', () => {
       await this.fetchProjects();
       await this.fetchAgents();
       await this.fetchPrompts();
+      await this.fetchAllPrs();
+      await this.fetchActivity();
       // Auto-select first tab
       if (this.agents.length > 0) {
         this.activeTab = this.agents[0].id;
       }
-      // If there are running agents, stay on dashboard to see overview
-      // If no agents at all, stay on dashboard too
       this.connectWebSocket();
+
+      // Elapsed time ticker (every 1s)
+      setInterval(() => { this.now = Date.now(); }, 1000);
+      // PR refresh (every 60s)
+      setInterval(() => this.fetchAllPrs(), 60000);
+
+      // Keyboard shortcuts
+      document.addEventListener('keydown', (e) => {
+        // Don't fire in inputs/textareas/modals
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+        if (this.showLaunchModal || this.showBroadcastModal || this.showPromptLibrary || this.showAddProjectModal || this.showOnboardModal || this.showOffboardModal) return;
+
+        if (e.key === 'l' || e.key === 'L') { this.showLaunchModal = true; e.preventDefault(); }
+        if (e.key === 'b' || e.key === 'B') { if (this.runningCount > 0) { this.showBroadcastModal = true; e.preventDefault(); } }
+        if (e.key === '1') { this.screen = 'dashboard'; e.preventDefault(); }
+        if (e.key === '2') { this.screen = 'agents'; e.preventDefault(); }
+        if (e.key === 'Escape') {
+          this.showLaunchModal = false;
+          this.showBroadcastModal = false;
+          this.showPromptLibrary = false;
+          this.showAddProjectModal = false;
+          this.showOnboardModal = false;
+          this.showOffboardModal = false;
+        }
+      });
     },
 
     // --- REST calls ---
@@ -301,6 +419,33 @@ document.addEventListener('alpine:init', () => {
         this.agents = data;
       } catch (err) {
         console.error('Failed to fetch agents:', err);
+      }
+    },
+
+    async fetchAllPrs() {
+      try {
+        const allPrs = [];
+        for (const project of this.projects) {
+          try {
+            const res = await fetch(`/api/projects/${project.id}/prs`);
+            if (res.ok) {
+              const prs = await res.json();
+              allPrs.push(...prs.map(pr => ({ ...pr, projectName: project.name, projectRepo: project.repo })));
+            }
+          } catch { /* skip failed project */ }
+        }
+        this.prs = allPrs;
+      } catch (err) {
+        console.error('Failed to fetch PRs:', err);
+      }
+    },
+
+    async fetchActivity() {
+      try {
+        const res = await fetch('/api/activity?limit=50');
+        if (res.ok) this.activityLog = await res.json();
+      } catch (err) {
+        console.error('Failed to fetch activity:', err);
       }
     },
 
@@ -651,21 +796,29 @@ document.addEventListener('alpine:init', () => {
           }
         }
 
+        if (msg.type === 'activity') {
+          const agent = this.agents.find((a) => a.id === msg.sessionId);
+          if (agent) agent.activity = msg.activity;
+        }
+
         if (msg.type === 'status') {
           const agent = this.agents.find((a) => a.id === msg.sessionId);
           if (agent) {
             agent.status = msg.status;
             agent.live = false;
           }
+          this.fetchActivity();
         }
 
         if (msg.type === 'launched') {
           this.fetchAgents();
+          this.fetchActivity();
         }
 
         if (msg.type === 'autopilot:launched') {
           this.showToast(`AutoPilot picked up #${msg.issueNumber} — let's get it 🤙`);
           this.fetchAgents();
+          this.fetchActivity();
         }
 
         if (msg.type === 'autopilot:idle') {

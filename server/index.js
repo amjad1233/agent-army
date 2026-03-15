@@ -17,6 +17,7 @@ import broadcastRouter from './routes/broadcast.js';
 import promptsRouter from './routes/prompts.js';
 import githubRouter from './routes/github.js';
 import healthRouter from './routes/health.js';
+import activityRouter from './routes/activity.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -39,6 +40,7 @@ app.use('/api/broadcast', broadcastRouter);
 app.use('/api/prompts', promptsRouter);
 app.use('/api/projects', githubRouter);
 app.use('/health', healthRouter);
+app.use('/api/activity', activityRouter);
 
 // WebSocket
 setupWebSocket(server);

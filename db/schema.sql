@@ -41,3 +41,13 @@ CREATE TABLE IF NOT EXISTS prompts (
   body TEXT NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Activity log for the event feed
+CREATE TABLE IF NOT EXISTS activity_log (
+  id INTEGER PRIMARY KEY,
+  type TEXT NOT NULL,
+  project_name TEXT,
+  message TEXT NOT NULL,
+  metadata_json TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

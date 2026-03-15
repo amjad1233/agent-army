@@ -17,6 +17,56 @@ class AgentManager extends EventEmitter {
     super();
     /** @type {Map<number, { pty: pty.IPty, log: string[], logBytes: number }>} */
     this.agents = new Map();
+    /** @type {Map<number, { status: string, lastOutputAt: Date }>} */
+    this.activityStates = new Map();
+
+    // Idle detection interval — check every 5s
+    this._idleChecker = setInterval(() => {
+      const now = Date.now();
+      for (const [sessionId, state] of this.activityStates) {
+        if (!this.agents.has(sessionId)) continue;
+        const elapsed = now - state.lastOutputAt.getTime();
+        if (elapsed > 60000 && state.status !== 'idle') {
+          state.status = 'idle';
+          this.emit('agent:activity', { sessionId, activity: 'idle', lastOutputAt: state.lastOutputAt });
+        } else if (elapsed > 15000 && elapsed <= 60000 && state.status !== 'thinking' && state.status !== 'idle') {
+          state.status = 'thinking';
+          this.emit('agent:activity', { sessionId, activity: 'thinking', lastOutputAt: state.lastOutputAt });
+        }
+      }
+    }, 5000);
+  }
+
+  /**
+   * Detect activity from PTY output patterns.
+   */
+  _detectActivity(sessionId, data) {
+    let activity = null;
+
+    if (/\bgh\s+pr\s+create\b|\bgit\s+push\b|\bcreating.*pull request\b/i.test(data)) {
+      activity = 'creating_pr';
+    } else if (/\bbash\b|\brunning\b|\b\$\s|\bexecuting\b/i.test(data)) {
+      activity = 'running_command';
+    } else if (/\bedit\b|\bwrite\b|\bwriting\b|\bcreating file\b/i.test(data)) {
+      activity = 'writing';
+    } else if (/\bread\b|\breading\b/i.test(data)) {
+      activity = 'reading';
+    }
+
+    if (activity) {
+      const state = this.activityStates.get(sessionId);
+      if (state && state.status !== activity) {
+        state.status = activity;
+        state.lastOutputAt = new Date();
+        this.emit('agent:activity', { sessionId, activity, lastOutputAt: state.lastOutputAt });
+      } else if (state) {
+        state.lastOutputAt = new Date();
+      }
+    } else {
+      // Update lastOutputAt even if no pattern matched
+      const state = this.activityStates.get(sessionId);
+      if (state) state.lastOutputAt = new Date();
+    }
   }
 
   /**
@@ -98,6 +148,7 @@ class AgentManager extends EventEmitter {
     // Set up log buffer
     const agent = { pty: proc, log: [], logBytes: 0 };
     this.agents.set(sessionId, agent);
+    this.activityStates.set(sessionId, { status: 'thinking', lastOutputAt: new Date() });
 
     // Stream data
     proc.onData((data) => {
@@ -111,6 +162,7 @@ class AgentManager extends EventEmitter {
         agent.logBytes -= removed.length;
       }
 
+      this._detectActivity(sessionId, data);
       this.emit('agent:output', { sessionId, data });
     });
 
@@ -118,6 +170,7 @@ class AgentManager extends EventEmitter {
       const status = exitCode === 0 ? 'completed' : 'failed';
       updateSessionStatus(sessionId, status);
       this.agents.delete(sessionId);
+      this.activityStates.delete(sessionId);
       this.emit('agent:status', { sessionId, status, exitCode });
     });
 
@@ -216,6 +269,7 @@ class AgentManager extends EventEmitter {
 
     const agent = { pty: proc, log: [], logBytes: 0 };
     this.agents.set(sessionId, agent);
+    this.activityStates.set(sessionId, { status: 'thinking', lastOutputAt: new Date() });
 
     proc.onData((data) => {
       agent.log.push(data);
@@ -224,6 +278,7 @@ class AgentManager extends EventEmitter {
         const removed = agent.log.shift();
         agent.logBytes -= removed.length;
       }
+      this._detectActivity(sessionId, data);
       this.emit('agent:output', { sessionId, data });
     });
 
@@ -231,6 +286,7 @@ class AgentManager extends EventEmitter {
       const status = exitCode === 0 ? 'completed' : 'failed';
       updateSessionStatus(sessionId, status);
       this.agents.delete(sessionId);
+      this.activityStates.delete(sessionId);
       this.emit('agent:status', { sessionId, status, exitCode });
     });
 
@@ -287,6 +343,13 @@ class AgentManager extends EventEmitter {
    */
   get runningCount() {
     return this.agents.size;
+  }
+
+  /**
+   * Get current activity state for an agent.
+   */
+  getActivity(sessionId) {
+    return this.activityStates.get(sessionId) || null;
   }
 
   /**

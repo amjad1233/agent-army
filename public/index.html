@@ -156,9 +156,9 @@
           <div class="stat-sub">agents active</div>
         </div>
         <div class="card fadeUp fadeUp-2" style="padding: 18px 20px;">
-          <div class="stat-label">Total Sessions</div>
-          <div class="stat-value text-green" x-text="agents.length"></div>
-          <div class="stat-sub">this session</div>
+          <div class="stat-label">Open PRs</div>
+          <div class="stat-value" style="color: var(--purple);" x-text="openPrCount"></div>
+          <div class="stat-sub" x-text="approvedPrCount + ' approved'"></div>
         </div>
         <div class="card fadeUp fadeUp-3" style="padding: 18px 20px;">
           <div class="stat-label">Completed</div>
@@ -180,7 +180,7 @@
 
       <!-- Active Agents -->
       <div x-show="runningAgents.length > 0" class="mb-7 fadeUp fadeUp-2">
-        <div class="card card-live" style="padding: 20px 22px;">
+        <div class="card card-live card-glow" style="padding: 20px 22px;">
           <div class="flex items-center justify-between mb-4">
             <div class="flex items-center gap-2.5">
               <div class="pulse-dot"></div>
@@ -199,18 +199,59 @@
               >
                 <div>
                   <div class="text-[13px] text-text1 font-medium mb-1" x-text="agent.project_name"></div>
-                  <div class="mono text-[10px] text-text3">
+                  <div class="mono text-[10px] text-text3 mb-1">
                     <span x-text="agent.issue_title || ('Issue #' + agent.issue_number)" x-show="agent.issue_number"></span>
                     <span x-show="!agent.issue_number" x-text="agent.project_repo"></span>
                   </div>
+                  <div class="flex items-center gap-2">
+                    <span
+                      class="activity-badge"
+                      :style="'color:' + activityColor(agent.activity || 'thinking')"
+                      x-text="activityLabel(agent.activity || 'thinking')"
+                    ></span>
+                  </div>
                 </div>
-                <span class="badge badge-running">
-                  <span class="badge-dot"></span>
-                  Running
-                </span>
+                <div class="flex flex-col items-end gap-1">
+                  <span class="mono text-[11px] text-text2" x-text="formatElapsed(agent.started_at)"></span>
+                  <span class="badge badge-running">
+                    <span class="badge-dot"></span>
+                    Running
+                  </span>
+                </div>
               </div>
             </template>
           </div>
+        </div>
+      </div>
+
+      <!-- Pull Requests -->
+      <div x-show="prs.length > 0" class="mb-7 fadeUp fadeUp-2">
+        <div class="label mb-3">Pull Requests</div>
+        <div class="grid grid-cols-2 gap-3">
+          <template x-for="pr in prs.filter(p => p.state === 'open')" :key="pr.number">
+            <div class="card" style="padding: 14px 16px;">
+              <div class="flex items-center justify-between mb-2">
+                <span class="mono text-[11px] text-text3" x-text="pr.projectName"></span>
+                <span
+                  class="badge"
+                  :class="{
+                    'badge-completed': pr.reviewDecision === 'APPROVED',
+                    'badge-failed': pr.reviewDecision === 'CHANGES_REQUESTED',
+                    'badge-running': !pr.reviewDecision || pr.reviewDecision === 'REVIEW_REQUIRED',
+                  }"
+                  x-text="pr.reviewDecision === 'APPROVED' ? 'Approved' : pr.reviewDecision === 'CHANGES_REQUESTED' ? 'Changes' : 'Pending'"
+                ></span>
+              </div>
+              <a
+                :href="pr.url"
+                target="_blank"
+                class="text-[13px] font-medium mb-1 block hover:underline"
+                style="color: var(--text-1);"
+                x-text="'#' + pr.number + ' ' + pr.title"
+              ></a>
+              <div class="mono text-[10px] text-text3" x-text="pr.headRefName || ''"></div>
+            </div>
+          </template>
         </div>
       </div>
 
@@ -285,9 +326,9 @@
 
           <!-- Empty state -->
           <div x-show="projects.length === 0" class="col-span-2 card" style="padding: 28px 20px; text-align: center;">
-            <p class="text-[13px] text-text3 mb-2">No projects yet</p>
+            <p class="text-[13px] text-text3 mb-2">Add your first project to start building your army</p>
             <button @click="showAddProjectModal = true" class="btn btn-ghost btn-sm" style="font-size: 11px;">
-              + Add your first project
+              + Add Project
             </button>
           </div>
         </div>
@@ -311,6 +352,10 @@
                 </div>
               </div>
               <div class="flex items-center gap-5">
+                <span class="mono text-[11px] text-text2"
+                  x-text="agent.live ? formatElapsed(agent.started_at) : formatDuration(agent.started_at, agent.finished_at)"
+                  x-show="agent.live || agent.finished_at"
+                ></span>
                 <span class="mono text-[11px] text-text3" x-text="'PID ' + agent.pid"></span>
                 <button
                   x-show="!agent.live && agent.claude_session_id"
@@ -337,8 +382,36 @@
         <div x-show="agents.length === 0" class="card" style="padding: 40px 20px;">
           <div class="text-center text-text3">
             <p class="text-[14px] mb-2">No sessions yet</p>
-            <p class="text-[12px]">Launch an agent to get started.</p>
+            <p class="text-[12px]">Launch an agent or enable AutoPilot to start grinding.</p>
           </div>
+        </div>
+      </div>
+
+      <!-- Activity Feed -->
+      <div class="fadeUp fadeUp-4 mt-7">
+        <div class="label mb-3">Activity Feed</div>
+        <div class="card" x-show="activityLog.length > 0" style="max-height: 320px; overflow-y: auto;">
+          <template x-for="entry in activityLog" :key="entry.id">
+            <div class="feed-row">
+              <div class="flex items-center gap-3">
+                <span
+                  class="feed-icon"
+                  :style="'color:' + feedColor(entry.type)"
+                  x-text="feedIcon(entry.type)"
+                ></span>
+                <div>
+                  <div class="text-[12px] text-text1" x-text="entry.message"></div>
+                  <div class="mono text-[10px] text-text3">
+                    <span x-text="entry.project_name" x-show="entry.project_name"></span>
+                  </div>
+                </div>
+              </div>
+              <span class="mono text-[10px] text-text3" x-text="formatTimeAgo(entry.created_at)"></span>
+            </div>
+          </template>
+        </div>
+        <div x-show="activityLog.length === 0" class="card" style="padding: 28px 20px; text-align: center;">
+          <p class="text-[13px] text-text3">Activity will appear here as agents work.</p>
         </div>
       </div>
     </div>
@@ -398,6 +471,7 @@
             ></span>
             <span x-text="agent.project_name"></span>
             <span x-show="agent.issue_number" class="text-text3 mono text-[11px]" x-text="'#' + agent.issue_number"></span>
+            <span x-show="agent.live" class="mono text-[10px]" :style="'color:' + activityColor(agent.activity || 'thinking')" x-text="activityLabel(agent.activity || 'thinking')"></span>
             <span
               @click.stop="closeTab(agent.id)"
               class="tab-close"
@@ -411,7 +485,7 @@
         <!-- Empty state -->
         <div x-show="agents.length === 0" class="empty-state">
           <p class="text-[16px] text-text2 mb-2 font-medium">No agents running</p>
-          <p class="text-[13px] text-text3 mb-5">Launch an agent to see its terminal here.</p>
+          <p class="text-[13px] text-text3 mb-5">Launch an agent or enable AutoPilot to start grinding.</p>
           <button
             @click="showLaunchModal = true"
             class="btn btn-outline-green"
@@ -439,8 +513,15 @@
                   <span x-show="agent.live" class="badge-dot"></span>
                   <span x-text="agent.live ? 'Running' : agent.status"></span>
                 </span>
+                <span
+                  x-show="agent.live"
+                  class="activity-badge"
+                  :style="'color:' + activityColor(agent.activity || 'thinking')"
+                  x-text="activityLabel(agent.activity || 'thinking')"
+                ></span>
                 <span class="mono text-[11px] text-text3" x-text="agent.project_repo"></span>
                 <span class="mono text-[11px] text-text3" x-text="'PID ' + agent.pid"></span>
+                <span x-show="agent.live" class="mono text-[11px] text-text2" x-text="formatElapsed(agent.started_at)"></span>
               </div>
               <div class="flex items-center gap-2">
                 <button

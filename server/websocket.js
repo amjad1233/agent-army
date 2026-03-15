@@ -1,6 +1,7 @@
 import { WebSocketServer } from 'ws';
 import { agentManager } from './services/AgentManager.js';
 import { autoPilot } from './services/AutoPilot.js';
+import { insertActivity, getSession } from './services/Database.js';
 
 /**
  * Set up WebSocket server on an existing HTTP server.
@@ -74,16 +75,37 @@ export function setupWebSocket(server) {
     broadcast({ type: 'output', sessionId, data }, sessionId);
   });
 
+  agentManager.on('agent:activity', ({ sessionId, activity, lastOutputAt }) => {
+    broadcast({ type: 'activity', sessionId, activity, lastOutputAt }, sessionId);
+  });
+
   agentManager.on('agent:status', ({ sessionId, status, exitCode }) => {
     broadcast({ type: 'status', sessionId, status, exitCode }, sessionId);
+    // Log to activity feed
+    try {
+      const session = getSession(sessionId);
+      const name = session?.project_name || 'Unknown';
+      const issue = session?.issue_number ? ` #${session.issue_number}` : '';
+      insertActivity(status, name, `Agent${issue} ${status}`, { sessionId, exitCode });
+    } catch { /* non-critical */ }
   });
 
   agentManager.on('agent:launched', ({ sessionId, projectId, issueNumber }) => {
     broadcast({ type: 'launched', sessionId, projectId, issueNumber }, null);
+    // Log to activity feed
+    try {
+      const session = getSession(sessionId);
+      const name = session?.project_name || 'Unknown';
+      const issue = issueNumber ? ` #${issueNumber}` : '';
+      insertActivity('launched', name, `Agent launched${issue}`, { sessionId, projectId, issueNumber });
+    } catch { /* non-critical */ }
   });
 
   autoPilot.on('autopilot:launched', ({ projectId, issueNumber, issueTitle, sessionId }) => {
     broadcast({ type: 'autopilot:launched', projectId, issueNumber, issueTitle, sessionId }, null);
+    try {
+      insertActivity('autopilot', null, `AutoPilot picked up #${issueNumber}: ${issueTitle}`, { projectId, issueNumber, sessionId });
+    } catch { /* non-critical */ }
   });
 
   autoPilot.on('autopilot:idle', ({ projectId }) => {
